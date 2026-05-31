@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
@@ -6,12 +6,20 @@ const STATUS_CLASS = { 'Aberta':'badge-quotation','Em curso':'badge-ordered','Co
 const ORDER_STATUS = { 'Recebido':'badge-pending','Em preparação':'badge-quotation','Encomendado':'badge-ordered','Parcial':'badge-warning','Entregue':'badge-delivered','Cancelado':'badge-cancelled' }
 const PRIO_CLASS = { 'Urgente':'prio-high','Normal':'prio-med','Baixa':'prio-low' }
 
+const FILE_ICONS = {
+  'application/pdf': '📄',
+  'image/jpeg': '🖼️', 'image/png': '🖼️', 'image/webp': '🖼️',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '📝',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '📊',
+}
+
 export default function Affaires() {
   const { session } = useAuth()
   const [affaires, setAffaires] = useState([])
   const [clients, setClients] = useState([])
   const [orders, setOrders] = useState([])
   const [requisitions, setRequisitions] = useState([])
+  const [docs, setDocs] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -20,6 +28,9 @@ export default function Affaires() {
   const [tab, setTab] = useState('orders')
   const [form, setForm] = useState({ ref_number:'', name:'', client_id:'', address:'', city:'', status:'Aberta', start_date:'', budget:'', notes:'' })
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState('')
+  const fileRef = useRef()
 
   const load = async () => {
     const [{ data: af }, { data: cl }] = await Promise.all([
@@ -40,13 +51,25 @@ export default function Affaires() {
     setRequisitions(req || [])
   }
 
+  const loadDocs = async (affaireId) => {
+    const { data, error } = await supabase.storage
+      .from('procureflow-docs')
+      .list(`affaires/${affaireId}`, { sortBy: { column: 'created_at', order: 'desc' } })
+    if (!error) setDocs(data || [])
+  }
+
   useEffect(() => { load() }, [])
 
-  const selectAffaire = (a) => { setSelected(a); loadDetail(a.id); setTab('orders') }
+  const selectAffaire = (a) => {
+    setSelected(a)
+    loadDetail(a.id)
+    loadDocs(a.id)
+    setTab('orders')
+  }
 
   const openEdit = (a) => {
     setEditAffaire(a)
-    setForm({ ref_number:a.ref_number, name:a.name, client_id:a.client_id||''  , address:a.address||'', city:a.city||'', status:a.status, start_date:a.start_date||'', budget:a.budget||'', notes:a.notes||''  })
+    setForm({ ref_number:a.ref_number, name:a.name, client_id:a.client_id||'', address:a.address||'', city:a.city||'', status:a.status, start_date:a.start_date||'', budget:a.budget||'', notes:a.notes||'' })
     setShowForm(true)
   }
 
@@ -69,6 +92,55 @@ export default function Affaires() {
     const { error } = await supabase.from('affaires').delete().eq('id', id)
     if (error) { alert('Erro: ' + error.message); return }
     setSelected(null); load()
+  }
+
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length || !selected) return
+    setUploading(true)
+    for (const file of files) {
+      setUploadProgress(`A carregar ${file.name}...`)
+      const ext = file.name.split('.').pop()
+      const fileName = `${Date.now()}_${file.name}`
+      const path = `affaires/${selected.id}/${fileName}`
+      const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
+      if (error) alert(`Erro ao carregar ${file.name}: ${error.message}`)
+    }
+    setUploadProgress('')
+    setUploading(false)
+    fileRef.current.value = ''
+    loadDocs(selected.id)
+  }
+
+  const handleDownload = async (fileName) => {
+    const path = `affaires/${selected.id}/${fileName}`
+    const { data, error } = await supabase.storage.from('procureflow-docs').createSignedUrl(path, 3600)
+    if (error) { alert('Erro: ' + error.message); return }
+    window.open(data.signedUrl, '_blank')
+  }
+
+  const handleDeleteDoc = async (fileName) => {
+    if (!confirm(`Apagar "${fileName}"?`)) return
+    const path = `affaires/${selected.id}/${fileName}`
+    const { error } = await supabase.storage.from('procureflow-docs').remove([path])
+    if (error) { alert('Erro: ' + error.message); return }
+    loadDocs(selected.id)
+  }
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '—'
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`
+    return `${(bytes/1024/1024).toFixed(1)} MB`
+  }
+
+  const getIcon = (name) => {
+    const ext = name.split('.').pop().toLowerCase()
+    if (ext === 'pdf') return '📄'
+    if (['jpg','jpeg','png','webp','gif'].includes(ext)) return '🖼️'
+    if (['doc','docx'].includes(ext)) return '📝'
+    if (['xls','xlsx'].includes(ext)) return '📊'
+    return '📎'
   }
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
@@ -115,7 +187,7 @@ export default function Affaires() {
             ? <div className="empty">Sem negócios.</div>
             : <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Ref.</th><th>Nome</th><th>Cliente</th><th>Estado</th><th>Ações</th></tr></thead>
+                  <thead><tr><th>Ref.</th><th>Nome</th><th>Cliente</th><th>Estado</th><th></th></tr></thead>
                   <tbody>
                     {affaires.map(a => (
                       <tr key={a.id} style={{cursor:'pointer',background:selected?.id===a.id?'var(--bg)':''}} onClick={()=>selectAffaire(a)}>
@@ -147,18 +219,21 @@ export default function Affaires() {
                 </div>
                 <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
               </div>
-              {selected.address && <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:8}}><i className="ti ti-map-pin" style={{marginRight:4}}/>{selected.address}, {selected.city}</div>}
-              {selected.budget && <div style={{fontSize:13,marginBottom:8}}><span style={{color:'var(--text-muted)'}}>Orçamento: </span><strong>€ {parseFloat(selected.budget).toLocaleString('pt-PT')}</strong></div>}
+              {selected.address && <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:6}}><i className="ti ti-map-pin" style={{marginRight:4}}/>{selected.address}, {selected.city}</div>}
+              {selected.budget && <div style={{fontSize:13,marginBottom:6}}><span style={{color:'var(--text-muted)'}}>Orçamento: </span><strong>€ {parseFloat(selected.budget).toLocaleString('pt-PT')}</strong></div>}
               {selected.notes && <div style={{fontSize:12,color:'var(--text-muted)',fontStyle:'italic',marginBottom:8}}>{selected.notes}</div>}
               <div style={{fontSize:12,color:'var(--blue)',padding:'8px 12px',background:'var(--blue-light)',borderRadius:'var(--radius)'}}>
-                <i className="ti ti-info-circle" style={{marginRight:6}}/>Para adicionar encomendas a esta obra, vai a <strong>Requisições</strong> e seleciona este negócio.
+                <i className="ti ti-info-circle" style={{marginRight:6}}/>Para adicionar encomendas, vai a <strong>Requisições</strong> e seleciona este negócio.
               </div>
             </div>
 
             <div className="card">
               <div className="tabs">
-                <div className={`tab ${tab==='orders'?'active':''}`} onClick={()=>setTab('orders')}>Encomendas do cliente ({orders.length})</div>
+                <div className={`tab ${tab==='orders'?'active':''}`} onClick={()=>setTab('orders')}>Encomendas ({orders.length})</div>
                 <div className={`tab ${tab==='req'?'active':''}`} onClick={()=>setTab('req')}>Requisições ({requisitions.length})</div>
+                <div className={`tab ${tab==='docs'?'active':''}`} onClick={()=>setTab('docs')}>
+                  Documentos {docs.length>0&&<span style={{background:'var(--blue)',color:'white',borderRadius:10,fontSize:10,padding:'1px 5px',marginLeft:4}}>{docs.length}</span>}
+                </div>
               </div>
 
               {tab==='orders' && (
@@ -181,20 +256,64 @@ export default function Affaires() {
               )}
 
               {tab==='req' && (
-                requisitions.length===0 ? <div className="empty">Sem requisições. Cria em <strong>Requisições</strong> e associa a este negócio.</div>
-                : <table>
-                    <thead><tr><th>Ref.</th><th>Material</th><th>Por</th><th>Estado</th></tr></thead>
-                    <tbody>
-                      {requisitions.map(r=>(
-                        <tr key={r.id}>
-                          <td style={{fontWeight:500}}>{r.ref_number}</td>
-                          <td style={{fontSize:12,maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</td>
-                          <td style={{fontSize:11,color:'var(--text-muted)'}}>{r.employees?.emp_code||'—'}</td>
-                          <td><span className="badge badge-pending">{r.status}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                requisitions.length===0
+                  ? <div className="empty">Sem requisições. Cria em <strong>Requisições</strong> e associa a este negócio.</div>
+                  : <table>
+                      <thead><tr><th>Ref.</th><th>Material</th><th>Por</th><th>Estado</th></tr></thead>
+                      <tbody>
+                        {requisitions.map(r=>(
+                          <tr key={r.id}>
+                            <td style={{fontWeight:500}}>{r.ref_number}</td>
+                            <td style={{fontSize:12,maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</td>
+                            <td style={{fontSize:11,color:'var(--text-muted)'}}>{r.employees?.emp_code||'—'}</td>
+                            <td><span className="badge badge-pending">{r.status}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+              )}
+
+              {tab==='docs' && (
+                <div>
+                  {/* Upload zone */}
+                  <div style={{border:'2px dashed var(--border-hover)',borderRadius:'var(--radius)',padding:'20px',textAlign:'center',marginBottom:14,background:'var(--bg)',cursor:'pointer'}} onClick={()=>fileRef.current?.click()}>
+                    <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" onChange={handleUpload} style={{display:'none'}} />
+                    {uploading
+                      ? <div style={{fontSize:13,color:'var(--blue)'}}><i className="ti ti-loader-2" style={{marginRight:6}}/>{uploadProgress}</div>
+                      : <div>
+                          <div style={{fontSize:24,marginBottom:6}}>📂</div>
+                          <div style={{fontSize:13,fontWeight:500}}>Clica para adicionar documentos</div>
+                          <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>PDF, imagens, Word, Excel · máx. 50 MB por ficheiro</div>
+                        </div>
+                    }
+                  </div>
+
+                  {/* Document list */}
+                  {docs.length === 0
+                    ? <div className="empty">Sem documentos. Carrega o primeiro!</div>
+                    : docs.filter(d => d.name !== '.emptyFolderPlaceholder').map(doc => (
+                        <div key={doc.name} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'0.5px solid var(--border)'}}>
+                          <span style={{fontSize:20,flexShrink:0}}>{getIcon(doc.name)}</span>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {doc.name.replace(/^\d+_/, '')}
+                            </div>
+                            <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>
+                              {formatSize(doc.metadata?.size)} · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-PT') : ''}
+                            </div>
+                          </div>
+                          <div style={{display:'flex',gap:6,flexShrink:0}}>
+                            <button className="btn btn-sm btn-primary" onClick={()=>handleDownload(doc.name)}>
+                              <i className="ti ti-download"/>Ver
+                            </button>
+                            <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeleteDoc(doc.name)}>
+                              <i className="ti ti-trash"/>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  }
+                </div>
               )}
             </div>
           </div>

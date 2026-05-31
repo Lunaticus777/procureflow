@@ -84,12 +84,20 @@ export default function Requisitions() {
     load()
   }
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    // Show local preview immediately
     const reader = new FileReader()
-    reader.onload = (ev) => { setImagePreview(ev.target.result); setForm(f => ({ ...f, image_url: ev.target.result })) }
+    reader.onload = (ev) => setImagePreview(ev.target.result)
     reader.readAsDataURL(file)
+    // Upload to Supabase Storage
+    const fileName = `${Date.now()}_${file.name}`
+    const path = `requisitions/${fileName}`
+    const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
+    if (error) { alert('Erro ao carregar imagem: ' + error.message); return }
+    const { data: urlData } = await supabase.storage.from('procureflow-docs').createSignedUrl(path, 60*60*24*365)
+    setForm(f => ({ ...f, image_url: path }))
   }
 
   const handleDelete = async (id) => {
