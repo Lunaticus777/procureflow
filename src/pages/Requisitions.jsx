@@ -68,14 +68,32 @@ export default function Requisitions() {
       technical_contact_notes: form.technical_contact_notes||null,
     }
     if (editReq) {
-      await supabase.from('requisitions').update(payload).eq('id', editReq.id)
+      const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
+      if (error) { alert('Erro ao guardar: ' + error.message); setSaving(false); return }
     } else {
-      const count = rows.length + 1
-      await supabase.from('requisitions').insert({
+      // Generate unique ref number based on count in DB
+      const { count: totalCount } = await supabase.from('requisitions').select('*', { count: 'exact', head: true })
+      const refNum = `REQ-${String((totalCount||0) + 1).padStart(3,'0')}`
+      const { error } = await supabase.from('requisitions').insert({
         ...payload,
-        ref_number: `REQ-${String(count).padStart(3,'0')}`,
-        created_by: emp?.id||null, status: 'Pendente'
+        ref_number: refNum,
+        created_by: emp?.id||null,
+        status: 'Pendente'
       })
+      if (error) {
+        // If ref collision, use timestamp
+        if (error.code === '23505') {
+          const { error: e2 } = await supabase.from('requisitions').insert({
+            ...payload,
+            ref_number: `REQ-${Date.now().toString().slice(-6)}`,
+            created_by: emp?.id||null,
+            status: 'Pendente'
+          })
+          if (e2) { alert('Erro ao guardar: ' + e2.message); setSaving(false); return }
+        } else {
+          alert('Erro ao guardar: ' + error.message); setSaving(false); return
+        }
+      }
     }
     setForm(EMPTY_FORM)
     setShowForm(false)
