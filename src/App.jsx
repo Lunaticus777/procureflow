@@ -5,20 +5,26 @@ import Dashboard from './pages/Dashboard'
 import Requisitions from './pages/Requisitions'
 import Quotations from './pages/Quotations'
 import Orders from './pages/Orders'
-import Payments from './pages/Payments'
-import Transport from './pages/Transport'
+import ClientPayments from './pages/ClientPayments'
+import TransportAgenda from './pages/TransportAgenda'
 import Suppliers from './pages/Suppliers'
+import SupplierDetail from './pages/SupplierDetail'
 import Stock from './pages/Stock'
+import Clients from './pages/Clients'
+import Affaires from './pages/Affaires'
 
 const PAGE_TITLES = {
   '/': 'Dashboard',
-  '/requisitions': 'Requisições',
+  '/requisitions': 'Requisições Internas',
   '/quotations': 'Cotações',
-  '/orders': 'Encomendas',
+  '/orders': 'Encomendas a Fornecedores',
   '/payments': 'Pagamentos',
-  '/transport': 'Transportes',
-  '/suppliers': 'Fornecedores',
-  '/stock': 'Stock',
+  '/transport': 'Agenda de Transportes',
+  '/suppliers': 'Avaliação de Fornecedores',
+  '/supplier-detail': 'Fornecedores',
+  '/stock': 'Gestão de Stock',
+  '/clients': 'Clientes',
+  '/affaires': 'Obras / Affaires',
 }
 
 function Layout() {
@@ -32,10 +38,8 @@ function Layout() {
   const nav = (path) => navigate(path)
   const isActive = (path) => location.pathname === path ? 'nav-item active' : 'nav-item'
   const title = PAGE_TITLES[location.pathname] || 'ProcureFlow'
-
-  // Get initials from email
   const email = session.user?.email || ''
-  const initials = email.slice(0,2).toUpperCase()
+  const initials = email.slice(0, 2).toUpperCase()
 
   return (
     <div className="app">
@@ -47,17 +51,26 @@ function Layout() {
         <nav className="nav">
           <div className="nav-section">Principal</div>
           <div className={isActive('/')} onClick={()=>nav('/')}><i className="ti ti-dashboard" />Dashboard</div>
-          <div className={isActive('/requisitions')} onClick={()=>nav('/requisitions')}><i className="ti ti-clipboard-list" />Requisições</div>
           <div className={isActive('/stock')} onClick={()=>nav('/stock')}><i className="ti ti-package" />Stock</div>
-          <div className="nav-section">Cotações</div>
-          <div className={isActive('/quotations')} onClick={()=>nav('/quotations')}><i className="ti ti-file-invoice" />Cotações</div>
+
+          <div className="nav-section">Clientes</div>
+          <div className={isActive('/clients')} onClick={()=>nav('/clients')}><i className="ti ti-users" />Clientes</div>
+          <div className={isActive('/affaires')} onClick={()=>nav('/affaires')}><i className="ti ti-building" />Obras / Affaires</div>
+
           <div className="nav-section">Compras</div>
+          <div className={isActive('/requisitions')} onClick={()=>nav('/requisitions')}><i className="ti ti-clipboard-list" />Requisições</div>
+          <div className={isActive('/quotations')} onClick={()=>nav('/quotations')}><i className="ti ti-file-invoice" />Cotações</div>
           <div className={isActive('/orders')} onClick={()=>nav('/orders')}><i className="ti ti-shopping-cart" />Encomendas</div>
+
+          <div className="nav-section">Financeiro</div>
           <div className={isActive('/payments')} onClick={()=>nav('/payments')}><i className="ti ti-credit-card" />Pagamentos</div>
+
           <div className="nav-section">Logística</div>
           <div className={isActive('/transport')} onClick={()=>nav('/transport')}><i className="ti ti-truck" />Transportes</div>
-          <div className="nav-section">Análise</div>
-          <div className={isActive('/suppliers')} onClick={()=>nav('/suppliers')}><i className="ti ti-star" />Fornecedores</div>
+
+          <div className="nav-section">Fornecedores</div>
+          <div className={isActive('/supplier-detail')} onClick={()=>nav('/supplier-detail')}><i className="ti ti-address-book" />Ficheiro</div>
+          <div className={isActive('/suppliers')} onClick={()=>nav('/suppliers')}><i className="ti ti-star" />Avaliações</div>
         </nav>
         <div className="user-area">
           <div className="avatar">{initials}</div>
@@ -72,8 +85,11 @@ function Layout() {
         <header className="topbar">
           <div className="topbar-title">{title}</div>
           <div className="topbar-actions">
-            <button className="btn btn-primary" onClick={()=>nav('/requisitions')} style={{fontSize:13}}>
-              <i className="ti ti-plus" />Nova Requisição
+            <button className="btn btn-primary" onClick={()=>nav('/affaires')} style={{fontSize:13}}>
+              <i className="ti ti-plus" />Nova Obra
+            </button>
+            <button className="btn" onClick={()=>nav('/requisitions')} style={{fontSize:13}}>
+              <i className="ti ti-clipboard-list" />Requisição
             </button>
           </div>
         </header>
@@ -83,10 +99,13 @@ function Layout() {
             <Route path="/requisitions" element={<Requisitions />} />
             <Route path="/quotations" element={<Quotations />} />
             <Route path="/orders" element={<Orders />} />
-            <Route path="/payments" element={<Payments />} />
-            <Route path="/transport" element={<Transport />} />
+            <Route path="/payments" element={<ClientPayments />} />
+            <Route path="/transport" element={<TransportAgenda />} />
             <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/supplier-detail" element={<SupplierDetail />} />
             <Route path="/stock" element={<Stock />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/affaires" element={<Affaires />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
