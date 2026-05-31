@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function ClientPayments() {
-  const [payments, setPayments] = useState([])
-  const [supplierPayments, setSupplierPayments] = useState([])
+  const [clientPayments, setClientPayments] = useState([])
+  const [supplierInvoices, setSupplierInvoices] = useState([])
+  const [supplierPartials, setSupplierPartials] = useState([])
   const [clients, setClients] = useState([])
   const [affaires, setAffaires] = useState([])
   const [orders, setOrders] = useState([])
@@ -17,15 +18,17 @@ export default function ClientPayments() {
   const [saving, setSaving] = useState(false)
 
   const load = async () => {
-    const [{ data: cp }, { data: sp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
+    const [{ data: cp }, { data: sp }, { data: pp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
       supabase.from('client_payments').select('*, clients(name), affaires(name,ref_number,id), client_orders(ref_number)').order('due_date'),
-      supabase.from('payments').select('*, orders(ref_number, suppliers(name), requisitions(description,affaires(name,ref_number,id)))').order('due_date'),
+      supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)))').order('due_date'),
+      supabase.from('order_partial_payments').select('*, orders(ref_number, suppliers(name), requisitions(description,affaires(name,ref_number,id))), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
       supabase.from('orders').select('id,ref_number,suppliers(name)').not('status','eq','Entregue').order('ref_number'),
     ])
-    setPayments(cp||[])
-    setSupplierPayments(sp||[])
+    setClientPayments(cp||[])
+    setSupplierInvoices(sp||[])
+    setSupplierPartials(pp||[])
     setClients(cl||[])
     setAffaires(af||[])
     setOrders(or||[])
@@ -56,34 +59,43 @@ export default function ClientPayments() {
   const badgeClass = (p) => { if(p.status==='Pago')return 'badge-delivered'; if(p.due_date&&p.due_date<today)return 'badge-critical'; if(p.due_date&&p.due_date===today)return 'badge-warning'; return 'badge-pending' }
   const badgeLabel = (p) => { if(p.status==='Pago')return 'Pago'; if(p.due_date&&p.due_date<today)return 'Em atraso'; if(p.due_date&&p.due_date===today)return 'Vence hoje'; return 'Pendente' }
 
-  const filteredClient = payments.filter(p => {
-    const s = search.toLowerCase()
-    const matchSearch = !s || p.clients?.name?.toLowerCase().includes(s) || p.invoice_ref?.toLowerCase().includes(s) || p.affaires?.name?.toLowerCase().includes(s)
-    const matchAffaire = !filterAffaire || p.affaires?.id === filterAffaire
-    return matchSearch && matchAffaire
+  const s = search.toLowerCase()
+  const fa = filterAffaire
+
+  const filteredClient = clientPayments.filter(p => {
+    const matchS = !s || p.clients?.name?.toLowerCase().includes(s) || p.invoice_ref?.toLowerCase().includes(s) || p.affaires?.name?.toLowerCase().includes(s)
+    const matchA = !fa || p.affaires?.id === fa
+    return matchS && matchA
   })
 
-  const filteredSupplier = supplierPayments.filter(p => {
-    const s = search.toLowerCase()
-    const matchSearch = !s || p.orders?.suppliers?.name?.toLowerCase().includes(s) || p.invoice_ref?.toLowerCase().includes(s) || p.orders?.requisitions?.affaires?.name?.toLowerCase().includes(s)
-    const matchAffaire = !filterAffaire || p.orders?.requisitions?.affaires?.id === filterAffaire
-    return matchSearch && matchAffaire
+  const filteredInvoices = supplierInvoices.filter(p => {
+    const matchS = !s || p.orders?.suppliers?.name?.toLowerCase().includes(s) || p.invoice_ref?.toLowerCase().includes(s) || p.orders?.requisitions?.affaires?.name?.toLowerCase().includes(s)
+    const matchA = !fa || p.orders?.requisitions?.affaires?.id === fa
+    return matchS && matchA
   })
 
-  const totalClientPending = payments.filter(p=>p.status!=='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalClientReceived = payments.filter(p=>p.status==='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalSupplierPending = supplierPayments.filter(p=>p.status!=='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalSupplierPaid = supplierPayments.filter(p=>p.status==='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
+  const filteredPartials = supplierPartials.filter(p => {
+    const matchS = !s || p.orders?.suppliers?.name?.toLowerCase().includes(s) || p.orders?.ref_number?.toLowerCase().includes(s)
+    const matchA = !fa || p.orders?.requisitions?.affaires?.id === fa
+    return matchS && matchA
+  })
+
+  // Totais
+  const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
+  const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
+  const totalSupplierPending = supplierInvoices.filter(p=>p.status!=='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
+  const totalSupplierPaid = supplierInvoices.filter(p=>p.status==='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
+  const totalPartialsPaid = supplierPartials.reduce((s,p)=>s+parseFloat(p.amount||0),0)
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
     <div>
       <div className="metrics">
-        <div className="metric"><div className="metric-label">A receber</div><div className="metric-value text-amber">€ {totalClientPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
-        <div className="metric"><div className="metric-label">Recebido</div><div className="metric-value text-green">€ {totalClientReceived.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
-        <div className="metric"><div className="metric-label">A pagar fornecedores</div><div className="metric-value text-red">€ {totalSupplierPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
-        <div className="metric"><div className="metric-label">Pago a fornecedores</div><div className="metric-value text-green">€ {totalSupplierPaid.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">A receber (clientes)</div><div className="metric-value text-amber">€ {totalClientPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">Recebido de clientes</div><div className="metric-value text-green">€ {totalClientReceived.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">Faturas por pagar</div><div className="metric-value text-red">€ {totalSupplierPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">Pago a fornecedores</div><div className="metric-value text-green">€ {(totalSupplierPaid + totalPartialsPaid).toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
       </div>
 
       {showForm && (
@@ -110,7 +122,7 @@ export default function ClientPayments() {
             </div>}
             <div className="form-group full"><label>Negócio / Obra</label>
               <select value={form.affaire_id} onChange={e=>setForm({...form,affaire_id:e.target.value})}>
-                <option value="">— Sem obra associada —</option>
+                <option value="">— Sem obra —</option>
                 {affaires.map(a=><option key={a.id} value={a.id}>{a.ref_number} — {a.name}</option>)}
               </select>
             </div>
@@ -129,12 +141,20 @@ export default function ClientPayments() {
       <div className="card">
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
           <div className="tabs" style={{margin:0,border:'none',flex:1}}>
-            <div className={`tab ${tab==='clients'?'active':''}`} onClick={()=>setTab('clients')}>Clientes ({filteredClient.filter(p=>p.status!=='Pago').length} pend.)</div>
-            <div className={`tab ${tab==='suppliers'?'active':''}`} onClick={()=>setTab('suppliers')}>Fornecedores ({filteredSupplier.filter(p=>p.status!=='Pago').length} pend.)</div>
+            <div className={`tab ${tab==='clients'?'active':''}`} onClick={()=>setTab('clients')}>
+              A receber — Clientes ({filteredClient.filter(p=>p.status!=='Pago').length} pend.)
+            </div>
+            <div className={`tab ${tab==='invoices'?'active':''}`} onClick={()=>setTab('invoices')}>
+              Faturas — Fornecedores ({filteredInvoices.filter(p=>p.status!=='Pago').length} pend.)
+            </div>
+            <div className={`tab ${tab==='partials'?'active':''}`} onClick={()=>setTab('partials')}>
+              Pagamentos efectuados ({filteredPartials.length})
+            </div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowForm(true)}><i className="ti ti-plus"/>Novo</button>
         </div>
 
+        {/* Filtros */}
         <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:160,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
           <select value={filterAffaire} onChange={e=>setFilterAffaire(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
@@ -144,20 +164,22 @@ export default function ClientPayments() {
           {(search||filterAffaire) && <button className="btn" onClick={()=>{setSearch('');setFilterAffaire('')}}>✕</button>}
         </div>
 
+        {/* A receber dos clientes */}
         {tab==='clients' && (
-          filteredClient.length===0 ? <div className="empty">Sem pagamentos.</div>
+          filteredClient.length===0 ? <div className="empty">Sem pagamentos de clientes.</div>
           : filteredClient.map(p=>(
               <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
                 <div>
-                  <div style={{fontWeight:500,fontSize:13}}>{p.clients?.name||'—'} {p.invoice_ref?`· ${p.invoice_ref}`:''}</div>
+                  <div style={{fontWeight:500,fontSize:13}}>{p.clients?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}</div>
                   <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
                     {p.affaires?`${p.affaires.ref_number} — ${p.affaires.name}`:p.client_orders?.ref_number||'—'}
                     {p.due_date?` · Vence ${new Date(p.due_date).toLocaleDateString('pt-PT')}`:''}
                     {p.paid_date?` · Pago ${new Date(p.paid_date).toLocaleDateString('pt-PT')}`:''}
                   </div>
+                  {p.notes && <div style={{fontSize:11,fontStyle:'italic',color:'var(--text-muted)'}}>{p.notes}</div>}
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontWeight:600}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
+                  <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
                   <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
                   {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'client')}>Recebido ✓</button>}
                 </div>
@@ -165,25 +187,58 @@ export default function ClientPayments() {
             ))
         )}
 
-        {tab==='suppliers' && (
-          filteredSupplier.length===0 ? <div className="empty">Sem pagamentos.</div>
-          : filteredSupplier.map(p=>(
+        {/* Faturas de fornecedores */}
+        {tab==='invoices' && (
+          filteredInvoices.length===0 ? <div className="empty">Sem faturas de fornecedores.</div>
+          : filteredInvoices.map(p=>(
               <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
                 <div>
-                  <div style={{fontWeight:500,fontSize:13}}>{p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· ${p.invoice_ref}`:''}</div>
+                  <div style={{fontWeight:500,fontSize:13}}>{p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}</div>
                   <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
-                    {p.orders?.ref_number} {p.orders?.requisitions?.affaires?`· ${p.orders.requisitions.affaires.ref_number} — ${p.orders.requisitions.affaires.name}`:''}
+                    {p.orders?.ref_number||'—'}
+                    {p.orders?.requisitions?.description ? ` · ${p.orders.requisitions.description.slice(0,40)}` : ''}
+                    {p.orders?.requisitions?.affaires ? ` · ${p.orders.requisitions.affaires.ref_number}` : ''}
                     {p.due_date?` · Vence ${new Date(p.due_date).toLocaleDateString('pt-PT')}`:''}
                     {p.paid_date?` · Pago ${new Date(p.paid_date).toLocaleDateString('pt-PT')}`:''}
                   </div>
+                  {p.notes && <div style={{fontSize:11,fontStyle:'italic',color:'var(--text-muted)'}}>{p.notes}</div>}
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontWeight:600}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
+                  <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
                   <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
                   {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>}
                 </div>
               </div>
             ))
+        )}
+
+        {/* Pagamentos parciais efectuados */}
+        {tab==='partials' && (
+          filteredPartials.length===0 ? <div className="empty">Sem pagamentos registados.</div>
+          : <>
+              <div style={{padding:'8px 12px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
+                <strong style={{color:'var(--green)'}}>Total pago: € {totalPartialsPaid.toLocaleString('pt-PT',{minimumFractionDigits:0})}</strong>
+                <span style={{color:'var(--text-muted)',marginLeft:8}}>({filteredPartials.length} pagamento(s))</span>
+              </div>
+              {filteredPartials.map(p=>(
+                <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
+                  <div>
+                    <div style={{fontWeight:500,fontSize:13}}>
+                      {p.orders?.suppliers?.name||'—'} · {p.orders?.ref_number||'—'}
+                      <span style={{fontWeight:400,fontSize:12,color:'var(--text-muted)',marginLeft:6}}>via {p.payment_method||'—'}</span>
+                    </div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
+                      {p.orders?.requisitions?.description?.slice(0,50)||''}
+                      {p.orders?.requisitions?.affaires ? ` · ${p.orders.requisitions.affaires.ref_number}` : ''}
+                      {` · ${new Date(p.payment_date).toLocaleDateString('pt-PT')}`}
+                      {` · por ${p.employees?.emp_code||'—'}`}
+                      {p.reference ? ` · Ref: ${p.reference}` : ''}
+                    </div>
+                  </div>
+                  <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})} ✓</span>
+                </div>
+              ))}
+            </>
         )}
       </div>
     </div>

@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
+function ImageFromStorage({ path }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    if (!path) return
+    if (path.startsWith('http') || path.startsWith('data:')) { setUrl(path); return }
+    supabase.storage.from('procureflow-docs').createSignedUrl(path, 3600)
+      .then(({ data }) => { if (data?.signedUrl) setUrl(data.signedUrl) })
+  }, [path])
+  if (!url) return null
+  return <img src={url} alt="ref" style={{maxWidth:'100%',maxHeight:120,borderRadius:'var(--border-radius-md)',objectFit:'contain',border:'0.5px solid var(--border)',background:'var(--bg)'}} />
+}
+
 export default function Quotations() {
   const { session } = useAuth()
   const [reqs, setReqs] = useState([])
@@ -21,7 +33,7 @@ export default function Quotations() {
   useEffect(() => {
     async function load() {
       const [{ data: rData }, { data: sData }] = await Promise.all([
-        supabase.from('requisitions').select('*, affaires(name,ref_number)').not('status','eq','Entregue').not('status','eq','Cancelado').order('created_at',{ascending:false}),
+        supabase.from('requisitions').select('*, affaires(name,ref_number), employees(full_name,emp_code)').not('status','eq','Entregue').not('status','eq','Cancelado').order('created_at',{ascending:false}),
         supabase.from('suppliers').select('*').eq('active',true).order('name'),
       ])
       setReqs(rData||[])
@@ -34,21 +46,13 @@ export default function Quotations() {
 
   const loadQuotes = async (reqId) => {
     setLoading(true)
-    const { data } = await supabase
-      .from('quotations')
-      .select('*, suppliers(name), employees(full_name, emp_code)')
-      .eq('requisition_id', reqId)
-      .order('final_price')
+    const { data } = await supabase.from('quotations').select('*, suppliers(name), employees(full_name, emp_code)').eq('requisition_id', reqId).order('final_price')
     setQuotes(data||[])
     setLoading(false)
   }
 
   const loadFollowups = async (quoteId) => {
-    const { data } = await supabase
-      .from('quotation_followups')
-      .select('*, employees(full_name, emp_code)')
-      .eq('quotation_id', quoteId)
-      .order('contact_date', { ascending: false })
+    const { data } = await supabase.from('quotation_followups').select('*, employees(full_name, emp_code)').eq('quotation_id', quoteId).order('contact_date', { ascending: false })
     setFollowups(f => ({ ...f, [quoteId]: data||[] }))
   }
 
@@ -80,16 +84,14 @@ export default function Quotations() {
       await supabase.from('requisitions').update({ status:'Em cotação' }).eq('id', selReq.id)
     }
     setForm({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'' })
-    setShowForm(false)
-    setEditQuote(null)
-    setSaving(false)
+    setShowForm(false); setEditQuote(null); setSaving(false)
     loadQuotes(selReq.id)
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Tem a certeza que quer apagar esta cotação?')) return
+    if (!confirm('Apagar esta cotação?')) return
     const { error } = await supabase.from('quotations').delete().eq('id', id)
-    if (error) { alert('Erro ao apagar: ' + error.message); return }
+    if (error) { alert('Erro: ' + error.message); return }
     loadQuotes(selReq.id)
   }
 
@@ -97,13 +99,22 @@ export default function Quotations() {
     await supabase.from('quotations').update({ selected: true }).eq('id', q.id)
     await supabase.from('requisitions').update({ status:'Aprovado' }).eq('id', selReq.id)
     const count = Date.now()
-    await supabase.from('orders').insert({
+    const total = q.final_price * selReq.quantity
+    // Criar encomenda
+    const { data: order } = await supabase.from('orders').insert({
       ref_number: `ENC-${String(count).slice(-4)}`,
       requisition_id: selReq.id, quotation_id: q.id, supplier_id: q.supplier_id,
-      quantity: selReq.quantity, total_amount: q.final_price * selReq.quantity,
-      status: 'Confirmado',
+      quantity: selReq.quantity, total_amount: total, status: 'Confirmado',
       expected_date: q.delivery_days ? new Date(Date.now()+q.delivery_days*86400000).toISOString().split('T')[0] : null,
-    })
+    }).select().single()
+    // Criar fatura pendente automaticamente
+    if (order) {
+      await supabase.from('payments').insert({
+        order_id: order.id, amount: total, status: 'Pendente',
+        payment_type: 'Fornecedor', due_date: q.valid_until||null,
+        notes: `Fatura de ${q.suppliers?.name||''} — ${selReq.description}`,
+      })
+    }
     loadQuotes(selReq.id)
   }
 
@@ -117,8 +128,7 @@ export default function Quotations() {
       next_followup: followupForm.next_followup||null,
     })
     setFollowupForm({ contact_type:'Telefone', notes:'', next_followup:'' })
-    setShowFollowup(null)
-    setSaving(false)
+    setShowFollowup(null); setSaving(false)
     loadFollowups(quoteId)
   }
 
@@ -128,28 +138,71 @@ export default function Quotations() {
   })
 
   return (
-    <div>
-      <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar requisição..." style={{flex:1,minWidth:180,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
-      </div>
-      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-        {filteredReqs.map(r=>(
-          <button key={r.id} className={`btn ${selReq?.id===r.id?'btn-primary':''}`} onClick={()=>selectReq(r)} style={{fontSize:12}}>
-            {r.ref_number}{r.affaires?` · ${r.affaires.ref_number}`:''} — {r.description.slice(0,25)}{r.description.length>25?'...':''}
-          </button>
-        ))}
-        {filteredReqs.length===0 && <div className="empty">Nenhuma requisição encontrada.</div>}
+    <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+      {/* Lista de requisições */}
+      <div style={{width:280,flexShrink:0}}>
+        <div className="card">
+          <div className="card-header"><span className="card-title">Requisições</span></div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+          {filteredReqs.length===0
+            ? <div className="empty">Sem requisições.</div>
+            : filteredReqs.map(r=>(
+                <div key={r.id} onClick={()=>selectReq(r)}
+                  style={{padding:'10px',marginBottom:6,borderRadius:'var(--radius)',border:`1px solid ${selReq?.id===r.id?'var(--blue)':'var(--border)'}`,background:selReq?.id===r.id?'var(--blue-light)':'var(--bg-card)',cursor:'pointer'}}>
+                  <div style={{fontWeight:500,fontSize:12,color:'var(--text-muted)',marginBottom:2}}>{r.ref_number} {r.affaires&&<span style={{color:'var(--blue)'}}>· {r.affaires.ref_number}</span>}</div>
+                  <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{r.quantity} {r.unit} · {r.employees?.emp_code||'—'}</div>
+                  <div style={{marginTop:4}}><span className={`badge ${{'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved'}[r.status]||''}`} style={{fontSize:10}}>{r.status}</span></div>
+                </div>
+              ))
+          }
+        </div>
       </div>
 
+      {/* Painel de cotações */}
       {selReq && (
-        <>
+        <div style={{flex:1,minWidth:0}}>
+          {/* Contexto completo da requisição */}
+          <div className="card" style={{marginBottom:12,borderLeft:'3px solid var(--blue)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:4}}>{selReq.ref_number} · {selReq.employees?.emp_code} {selReq.employees?.full_name} {selReq.affaires?`· ${selReq.affaires.ref_number} — ${selReq.affaires.name}`:''}</div>
+                <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>{selReq.description}</div>
+                <div style={{display:'flex',gap:12,fontSize:13,flexWrap:'wrap'}}>
+                  <span><span style={{color:'var(--text-muted)'}}>Qtd: </span><strong>{selReq.quantity} {selReq.unit}</strong></span>
+                  <span><span style={{color:'var(--text-muted)'}}>Mín. fornecedores: </span><strong>{selReq.min_quotes}</strong></span>
+                  {selReq.needed_by && <span><span style={{color:'var(--text-muted)'}}>Data necessária: </span><strong style={{color:'var(--amber)'}}>{new Date(selReq.needed_by).toLocaleDateString('pt-PT')}</strong></span>}
+                </div>
+                {selReq.notes && (
+                  <div style={{marginTop:8,padding:'8px',background:'var(--bg)',borderRadius:'var(--radius)',fontSize:12}}>
+                    <span style={{fontWeight:600,color:'var(--text-muted)'}}>Especificações: </span>{selReq.notes}
+                  </div>
+                )}
+                {selReq.technical_contact_name && (
+                  <div style={{marginTop:6,fontSize:12,color:'var(--blue)'}}>
+                    <i className="ti ti-user-check" style={{marginRight:4}}/>
+                    <strong>{selReq.technical_contact_name}</strong>
+                    {selReq.technical_contact_company && ` — ${selReq.technical_contact_company}`}
+                    {selReq.technical_contact_phone && <a href={`tel:${selReq.technical_contact_phone}`} style={{marginLeft:8,color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-phone" style={{marginRight:2}}/>{selReq.technical_contact_phone}</a>}
+                  </div>
+                )}
+              </div>
+              {selReq.image_url && (
+                <div style={{width:120,flexShrink:0}}>
+                  <ImageFromStorage path={selReq.image_url} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Formulário de nova cotação */}
           {showForm && (
-            <div className="card" style={{maxWidth:620,marginBottom:16}}>
-              <div className="card-header"><span className="card-title">{editQuote?'Editar Cotação':'Adicionar Cotação'} — {selReq.ref_number}</span></div>
+            <div className="card" style={{marginBottom:12}}>
+              <div className="card-header"><span className="card-title">{editQuote?'Editar Cotação':'Nova Cotação'} — {selReq.description.slice(0,40)}</span></div>
               <div className="form-grid">
                 <div className="form-group full"><label>Fornecedor *</label>
                   <select value={form.supplier_id} onChange={e=>setForm({...form,supplier_id:e.target.value})}>
-                    <option value="">Selecionar fornecedor...</option>
+                    <option value="">Selecionar...</option>
                     {suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
@@ -163,98 +216,103 @@ export default function Quotations() {
                     {['Pronto pagamento','30 dias','45 dias','60 dias','90 dias'].map(t=><option key={t}>{t}</option>)}
                   </select>
                 </div>
+                {selReq.quantity && <div className="form-group">
+                  <label>Total estimado</label>
+                  <div style={{padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',fontSize:13,fontWeight:600,color:'var(--blue)'}}>
+                    {form.unit_price ? `€ ${(parseFloat(form.unit_price) * (1-parseFloat(form.discount_pct||0)/100) * parseFloat(selReq.quantity)).toLocaleString('pt-PT',{minimumFractionDigits:2})}` : '—'}
+                  </div>
+                </div>}
                 <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
               </div>
               <div className="form-actions">
                 <button className="btn" onClick={()=>{setShowForm(false);setEditQuote(null)}}>Cancelar</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editQuote?'Guardar alterações':'Guardar Cotação'}</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editQuote?'Guardar':'Guardar Cotação'}</button>
               </div>
             </div>
           )}
 
           <div className="card">
             <div className="card-header">
-              <div>
-                <span className="card-title">Cotações — {selReq.ref_number}: {selReq.description}</span>
-                {selReq.affaires && <div style={{fontSize:12,color:'var(--blue)',marginTop:2}}><i className="ti ti-building" style={{marginRight:4}}/>{selReq.affaires.ref_number} — {selReq.affaires.name}</div>}
-              </div>
+              <span className="card-title">Cotações ({quotes.length}) {quotes.length < selReq.min_quotes && <span style={{fontSize:11,color:'var(--amber)'}}>— faltam {selReq.min_quotes - quotes.length} cotação(ões)</span>}</span>
               <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditQuote(null)}}><i className="ti ti-plus"/>Adicionar</button>
             </div>
 
             {loading ? <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
               : quotes.length===0 ? <div className="empty">Sem cotações. Adiciona a primeira!</div>
-              : <>
-                  <div className="quote-grid" style={{marginBottom:16}}>
-                    {quotes.map((q,i)=>{
-                      const qFollowups = followups[q.id] || []
-                      const lastFollowup = qFollowups[0]
-                      const daysSince = lastFollowup ? Math.floor((new Date()-new Date(lastFollowup.contact_date))/86400000) : null
-                      return (
-                        <div key={q.id} className={`quote-card ${i===0&&!q.selected?'best':''}`}>
-                          {i===0&&!q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--blue)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>Melhor preço</span></div>}
-                          {q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--green)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✓ Aprovado</span></div>}
-                          <div style={{fontWeight:600,marginBottom:10}}>{q.suppliers?.name}</div>
-                          <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Preço unit.</span><span>€ {parseFloat(q.unit_price).toFixed(2)}</span></div>
-                          <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Desconto</span><span style={{color:'var(--green)'}}>{q.discount_pct}%</span></div>
-                          <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Preço final/un.</span><span style={{fontWeight:600}}>€ {parseFloat(q.final_price).toFixed(2)}</span></div>
-                          <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Entrega</span><span>{q.delivery_days?`${q.delivery_days} dias`:'—'}</span></div>
-                          <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Pagamento</span><span>{q.payment_terms}</span></div>
-
-                          {/* Último relançamento */}
-                          {lastFollowup && (
-                            <div style={{marginTop:8,padding:'6px 8px',background: daysSince>7?'var(--red-light)':'var(--green-light)',borderRadius:'var(--radius)',fontSize:11}}>
-                              <div style={{fontWeight:500}}>Último contacto: há {daysSince} dias</div>
-                              <div style={{color:'var(--text-muted)',marginTop:2}}>{lastFollowup.contact_type} · {lastFollowup.employees?.emp_code} · {lastFollowup.notes?.slice(0,60)}</div>
-                              {lastFollowup.next_followup && <div style={{marginTop:2,color:'var(--amber)'}}>Próximo: {new Date(lastFollowup.next_followup).toLocaleDateString('pt-PT')}</div>}
-                            </div>
-                          )}
-
-                          <div style={{marginTop:10,display:'flex',gap:6,flexWrap:'wrap'}}>
-                            {!q.selected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>Aprovar</button>}
-                            <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
-                            <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
-                            <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>
-                          </div>
-
-                          {/* Relançamento form */}
-                          {showFollowup===q.id && (
-                            <div style={{marginTop:10,padding:'10px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
-                              <div style={{fontSize:12,fontWeight:500,marginBottom:8}}>Registar contacto:</div>
-                              <div className="form-grid" style={{gap:8}}>
-                                <div className="form-group"><label>Tipo</label>
-                                  <select value={followupForm.contact_type} onChange={e=>setFollowupForm({...followupForm,contact_type:e.target.value})}>
-                                    {['Telefone','Email','WhatsApp'].map(t=><option key={t}>{t}</option>)}
-                                  </select>
-                                </div>
-                                <div className="form-group"><label>Próximo seguimento</label>
-                                  <input type="date" value={followupForm.next_followup} onChange={e=>setFollowupForm({...followupForm,next_followup:e.target.value})} />
-                                </div>
-                                <div className="form-group full"><label>Notas *</label>
-                                  <input value={followupForm.notes} onChange={e=>setFollowupForm({...followupForm,notes:e.target.value})} placeholder="Ex: Fornecedor confirma entrega 3ª feira" />
-                                </div>
-                              </div>
-                              <button className="btn btn-primary btn-sm" style={{marginTop:6}} onClick={()=>handleFollowup(q.id)} disabled={saving}>Guardar</button>
-                              {/* Histórico */}
-                              {(followups[q.id]||[]).length > 0 && (
-                                <div style={{marginTop:10,borderTop:'0.5px solid var(--border)',paddingTop:8}}>
-                                  <div style={{fontSize:11,fontWeight:500,color:'var(--text-muted)',marginBottom:6}}>Histórico de relançamentos:</div>
-                                  {(followups[q.id]||[]).map(f=>(
-                                    <div key={f.id} style={{fontSize:11,padding:'4px 0',borderBottom:'0.5px solid var(--border)'}}>
-                                      <span style={{fontWeight:500}}>{f.contact_type}</span> · {f.employees?.emp_code} · {new Date(f.contact_date).toLocaleDateString('pt-PT')} — {f.notes}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
+              : <div className="quote-grid">
+                  {quotes.map((q,i)=>{
+                    const qFollowups = followups[q.id] || []
+                    const lastFollowup = qFollowups[0]
+                    const daysSince = lastFollowup ? Math.floor((new Date()-new Date(lastFollowup.contact_date))/86400000) : null
+                    const totalQuote = parseFloat(q.final_price) * parseFloat(selReq.quantity)
+                    return (
+                      <div key={q.id} className={`quote-card ${i===0&&!q.selected?'best':''}`}>
+                        {i===0&&!q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--blue)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>💰 Melhor preço</span></div>}
+                        {q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--green)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✓ Aprovado → Encomendado</span></div>}
+                        <div style={{fontWeight:600,marginBottom:10,fontSize:14}}>{q.suppliers?.name}</div>
+                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Preço unit.</span><span>€ {parseFloat(q.unit_price).toFixed(2)}</span></div>
+                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Desconto</span><span style={{color:'var(--green)'}}>{q.discount_pct}%</span></div>
+                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Final/un.</span><span style={{fontWeight:600}}>€ {parseFloat(q.final_price).toFixed(2)}</span></div>
+                        <div className="quote-field" style={{background:'rgba(24,95,165,0.05)',padding:'4px 6px',borderRadius:4}}>
+                          <span style={{color:'var(--text-muted)'}}>Total ({selReq.quantity} {selReq.unit})</span>
+                          <span style={{fontWeight:700,color:'var(--blue)',fontSize:14}}>€ {totalQuote.toLocaleString('pt-PT',{minimumFractionDigits:2})}</span>
                         </div>
-                      )
-                    })}
-                  </div>
-                </>
+                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Entrega</span><span>{q.delivery_days?`${q.delivery_days} dias`:'—'}</span></div>
+                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Pagamento</span><span>{q.payment_terms}</span></div>
+                        {q.notes && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:6,fontStyle:'italic',padding:'4px 6px',background:'var(--bg)',borderRadius:4}}>{q.notes}</div>}
+
+                        {/* Último relançamento */}
+                        {daysSince !== null && (
+                          <div style={{marginTop:8,padding:'6px 8px',background:daysSince>7?'var(--red-light)':'var(--green-light)',borderRadius:'var(--radius)',fontSize:11}}>
+                            <div style={{fontWeight:500}}>Último contacto: há {daysSince} dia(s)</div>
+                            <div style={{color:'var(--text-muted)',marginTop:1}}>{lastFollowup.contact_type} · {lastFollowup.employees?.emp_code} · {lastFollowup.notes?.slice(0,50)}</div>
+                            {lastFollowup.next_followup && <div style={{marginTop:2,color:'var(--amber)'}}>Próximo: {new Date(lastFollowup.next_followup).toLocaleDateString('pt-PT')}</div>}
+                          </div>
+                        )}
+
+                        <div style={{marginTop:10,display:'flex',gap:6,flexWrap:'wrap'}}>
+                          {!q.selected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
+                          <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
+                          <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
+                          <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>
+                        </div>
+
+                        {showFollowup===q.id && (
+                          <div style={{marginTop:10,padding:'10px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
+                            <div style={{fontSize:12,fontWeight:500,marginBottom:8}}>Registar contacto:</div>
+                            <div className="form-grid" style={{gap:8}}>
+                              <div className="form-group"><label>Tipo</label>
+                                <select value={followupForm.contact_type} onChange={e=>setFollowupForm({...followupForm,contact_type:e.target.value})}>
+                                  {['Telefone','Email','WhatsApp'].map(t=><option key={t}>{t}</option>)}
+                                </select>
+                              </div>
+                              <div className="form-group"><label>Próximo seguimento</label>
+                                <input type="date" value={followupForm.next_followup} onChange={e=>setFollowupForm({...followupForm,next_followup:e.target.value})} />
+                              </div>
+                              <div className="form-group full"><label>Notas *</label>
+                                <input value={followupForm.notes} onChange={e=>setFollowupForm({...followupForm,notes:e.target.value})} placeholder="Ex: Confirma entrega 3ª feira" />
+                              </div>
+                            </div>
+                            <button className="btn btn-primary btn-sm" style={{marginTop:6}} onClick={()=>handleFollowup(q.id)} disabled={saving}>Guardar</button>
+                            {(followups[q.id]||[]).length > 0 && (
+                              <div style={{marginTop:8,borderTop:'0.5px solid var(--border)',paddingTop:6}}>
+                                <div style={{fontSize:11,fontWeight:500,color:'var(--text-muted)',marginBottom:4}}>Histórico:</div>
+                                {(followups[q.id]||[]).map(f=>(
+                                  <div key={f.id} style={{fontSize:11,padding:'3px 0',borderBottom:'0.5px solid var(--border)'}}>
+                                    <strong>{f.contact_type}</strong> · {f.employees?.emp_code} · {new Date(f.contact_date).toLocaleDateString('pt-PT')} — {f.notes}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
             }
           </div>
-        </>
+        </div>
       )}
     </div>
   )
