@@ -43,6 +43,14 @@ export default function ClientPayments() {
     load()
   }
 
+  const handleDeletePayment = async (id, type) => {
+    if (!confirm('Apagar este pagamento?')) return
+    const table = type === 'client' ? 'client_payments' : type === 'partial' ? 'order_partial_payments' : 'payments'
+    const { error } = await supabase.from(table).delete().eq('id', id)
+    if (error) { alert('Erro: ' + error.message); return }
+    load()
+  }
+
   const handleSave = async () => {
     if (!form.amount) return
     setSaving(true)
@@ -182,6 +190,7 @@ export default function ClientPayments() {
                   <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
                   <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
                   {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'client')}>Recebido ✓</button>}
+                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'client')} title="Apagar"><i className="ti ti-trash"/></button>
                 </div>
               </div>
             ))
@@ -207,6 +216,7 @@ export default function ClientPayments() {
                   <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
                   <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
                   {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>}
+                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>
                 </div>
               </div>
             ))
@@ -235,7 +245,10 @@ export default function ClientPayments() {
                       {p.reference ? ` · Ref: ${p.reference}` : ''}
                     </div>
                   </div>
-                  <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})} ✓</span>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})} ✓</span>
+                    <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'partial')} title="Apagar"><i className="ti ti-trash"/></button>
+                  </div>
                 </div>
               ))}
             </>
