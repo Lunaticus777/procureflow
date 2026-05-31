@@ -24,7 +24,7 @@ const PAGE_TITLES = {
   '/supplier-detail': 'Fornecedores',
   '/stock': 'Gestão de Stock',
   '/clients': 'Clientes',
-  '/affaires': 'Obras / Affaires',
+  '/affaires': 'Negócios / Obras',
 }
 
 function Layout() {
@@ -55,7 +55,7 @@ function Layout() {
 
           <div className="nav-section">Clientes</div>
           <div className={isActive('/clients')} onClick={()=>nav('/clients')}><i className="ti ti-users" />Clientes</div>
-          <div className={isActive('/affaires')} onClick={()=>nav('/affaires')}><i className="ti ti-building" />Obras / Affaires</div>
+          <div className={isActive('/affaires')} onClick={()=>nav('/affaires')}><i className="ti ti-building" />Negócios / Obras</div>
 
           <div className="nav-section">Compras</div>
           <div className={isActive('/requisitions')} onClick={()=>nav('/requisitions')}><i className="ti ti-clipboard-list" />Requisições</div>
@@ -86,7 +86,7 @@ function Layout() {
           <div className="topbar-title">{title}</div>
           <div className="topbar-actions">
             <button className="btn btn-primary" onClick={()=>nav('/affaires')} style={{fontSize:13}}>
-              <i className="ti ti-plus" />Nova Obra
+              <i className="ti ti-plus" />Novo Negócio
             </button>
             <button className="btn" onClick={()=>nav('/requisitions')} style={{fontSize:13}}>
               <i className="ti ti-clipboard-list" />Requisição
