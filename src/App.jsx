@@ -7,6 +7,7 @@ import Quotations from './pages/Quotations'
 import Orders from './pages/Orders'
 import ClientPayments from './pages/ClientPayments'
 import TransportAgenda from './pages/TransportAgenda'
+import Transport from './pages/Transport'
 import Suppliers from './pages/Suppliers'
 import SupplierDetail from './pages/SupplierDetail'
 import Stock from './pages/Stock'
@@ -19,7 +20,8 @@ const PAGE_TITLES = {
   '/quotations': 'Cotações',
   '/orders': 'Encomendas',
   '/payments': 'Pagamentos',
-  '/transport': 'Transportes',
+  '/transport': 'Agenda de Transportes',
+  '/carriers': 'Transportadores',
   '/suppliers': 'Avaliação de Fornecedores',
   '/supplier-detail': 'Fornecedores',
   '/stock': 'Stock',
@@ -66,7 +68,8 @@ function Layout() {
           <div className={isActive('/payments')} onClick={()=>nav('/payments')}><i className="ti ti-credit-card" />Pagamentos</div>
 
           <div className="nav-section">Logística</div>
-          <div className={isActive('/transport')} onClick={()=>nav('/transport')}><i className="ti ti-truck" />Transportes</div>
+          <div className={isActive('/transport')} onClick={()=>nav('/transport')}><i className="ti ti-calendar" />Agenda</div>
+          <div className={isActive('/carriers')} onClick={()=>nav('/carriers')}><i className="ti ti-truck" />Transportadores</div>
 
           <div className="nav-section">Fornecedores</div>
           <div className={isActive('/supplier-detail')} onClick={()=>nav('/supplier-detail')}><i className="ti ti-address-book" />Ficheiro</div>
@@ -101,6 +104,7 @@ function Layout() {
             <Route path="/orders" element={<Orders />} />
             <Route path="/payments" element={<ClientPayments />} />
             <Route path="/transport" element={<TransportAgenda />} />
+            <Route path="/carriers" element={<Transport />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/supplier-detail" element={<SupplierDetail />} />
             <Route path="/stock" element={<Stock />} />

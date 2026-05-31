@@ -107,14 +107,7 @@ export default function Quotations() {
       quantity: selReq.quantity, total_amount: total, status: 'Confirmado',
       expected_date: q.delivery_days ? new Date(Date.now()+q.delivery_days*86400000).toISOString().split('T')[0] : null,
     }).select().single()
-    // Criar fatura pendente automaticamente
-    if (order) {
-      await supabase.from('payments').insert({
-        order_id: order.id, amount: total, status: 'Pendente',
-        payment_type: 'Fornecedor', due_date: q.valid_until||null,
-        notes: `Fatura de ${q.suppliers?.name||''} — ${selReq.description}`,
-      })
-    }
+    // Nota: o trigger da base de dados já cria automaticamente o pagamento pendente
     loadQuotes(selReq.id)
   }
 
