@@ -7,13 +7,14 @@ const STATUS_CLASS = {
   'Encomendado':'badge-ordered','Em trânsito':'badge-transit','Entregue':'badge-delivered','Cancelado':'badge-cancelled'
 }
 const PRIO_CLASS = { 'Alta':'prio-high','Média':'prio-med','Baixa':'prio-low' }
+const PRIO_BG = { 'Alta':'var(--red-light)','Média':'var(--amber-light)','Baixa':'var(--bg)' }
+const PRIO_COLOR = { 'Alta':'#A32D2D','Média':'#633806','Baixa':'var(--text-muted)' }
 
 const EMPTY_FORM = {
   description:'', quantity:'', unit:'un.', priority:'Média', needed_by:'', min_quotes:'2',
-  notes:'', affaire_id:'',
+  notes:'', affaire_id:'', image_url:'',
   technical_contact_name:'', technical_contact_phone:'', technical_contact_company:'', technical_contact_notes:''
 }
-
 
 function ImageFromStorage({ path }) {
   const [url, setUrl] = React.useState(null)
@@ -23,8 +24,10 @@ function ImageFromStorage({ path }) {
     supabase.storage.from('procureflow-docs').createSignedUrl(path, 3600)
       .then(({ data }) => { if (data?.signedUrl) setUrl(data.signedUrl) })
   }, [path])
-  if (!url) return <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>A carregar imagem...</div>
-  return <img src={url} alt="ref" style={{marginTop:8,maxWidth:'100%',maxHeight:150,borderRadius:'var(--radius)',objectFit:'cover'}} />
+  if (!url) return <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4,fontStyle:'italic'}}>A carregar imagem...</div>
+  return (
+    <img src={url} alt="Referência" style={{marginTop:8,maxWidth:'100%',maxHeight:300,borderRadius:'var(--radius)',objectFit:'contain',border:'0.5px solid var(--border)',background:'var(--bg)'}} />
+  )
 }
 
 export default function Requisitions() {
@@ -34,12 +37,12 @@ export default function Requisitions() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editReq, setEditReq] = useState(null)
+  const [selected, setSelected] = useState(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPrio, setFilterPrio] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [expanded, setExpanded] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const fileRef = useRef()
 
@@ -60,11 +63,25 @@ export default function Requisitions() {
     setForm({
       description:r.description, quantity:r.quantity, unit:r.unit, priority:r.priority,
       needed_by:r.needed_by||'', min_quotes:r.min_quotes, notes:r.notes||'', affaire_id:r.affaire_id||'',
+      image_url:r.image_url||'',
       technical_contact_name:r.technical_contact_name||'', technical_contact_phone:r.technical_contact_phone||'',
       technical_contact_company:r.technical_contact_company||'', technical_contact_notes:r.technical_contact_notes||''
     })
-    setImagePreview(r.image_url||null)
+    setImagePreview(null)
     setShowForm(true)
+    setSelected(null)
+  }
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target.result)
+    reader.readAsDataURL(file)
+    const path = `requisitions/${Date.now()}_${file.name}`
+    const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
+    if (error) { alert('Erro ao carregar imagem: ' + error.message); return }
+    setForm(f => ({ ...f, image_url: path }))
   }
 
   const handleSave = async () => {
@@ -74,7 +91,7 @@ export default function Requisitions() {
     const payload = {
       description: form.description, quantity: parseFloat(form.quantity), unit: form.unit,
       priority: form.priority, needed_by: form.needed_by||null, min_quotes: parseInt(form.min_quotes),
-      notes: form.notes, affaire_id: form.affaire_id||null,
+      notes: form.notes, affaire_id: form.affaire_id||null, image_url: form.image_url||null,
       technical_contact_name: form.technical_contact_name||null,
       technical_contact_phone: form.technical_contact_phone||null,
       technical_contact_company: form.technical_contact_company||null,
@@ -82,67 +99,30 @@ export default function Requisitions() {
     }
     if (editReq) {
       const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
-      if (error) { alert('Erro ao guardar: ' + error.message); setSaving(false); return }
+      if (error) { alert('Erro: ' + error.message); setSaving(false); return }
     } else {
-      // Generate unique ref number based on count in DB
       const { count: totalCount } = await supabase.from('requisitions').select('*', { count: 'exact', head: true })
       const refNum = `REQ-${String((totalCount||0) + 1).padStart(3,'0')}`
       const { error } = await supabase.from('requisitions').insert({
-        ...payload,
-        ref_number: refNum,
-        created_by: emp?.id||null,
-        status: 'Pendente'
+        ...payload, ref_number: refNum, created_by: emp?.id||null, status: 'Pendente'
       })
       if (error) {
-        // If ref collision, use timestamp
         if (error.code === '23505') {
-          const { error: e2 } = await supabase.from('requisitions').insert({
-            ...payload,
-            ref_number: `REQ-${Date.now().toString().slice(-6)}`,
-            created_by: emp?.id||null,
-            status: 'Pendente'
+          await supabase.from('requisitions').insert({
+            ...payload, ref_number: `REQ-${Date.now().toString().slice(-6)}`, created_by: emp?.id||null, status: 'Pendente'
           })
-          if (e2) { alert('Erro ao guardar: ' + e2.message); setSaving(false); return }
-        } else {
-          alert('Erro ao guardar: ' + error.message); setSaving(false); return
-        }
+        } else { alert('Erro: ' + error.message); setSaving(false); return }
       }
     }
-    setForm(EMPTY_FORM)
-    setShowForm(false)
-    setEditReq(null)
-    setSaving(false)
-    load()
-  }
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    // Show local preview immediately
-    const reader = new FileReader()
-    reader.onload = (ev) => setImagePreview(ev.target.result)
-    reader.readAsDataURL(file)
-    // Upload to Supabase Storage
-    const fileName = `${Date.now()}_${file.name}`
-    const path = `requisitions/${fileName}`
-    const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
-    if (error) { alert('Erro ao carregar imagem: ' + error.message); return }
-    const { data: urlData } = await supabase.storage.from('procureflow-docs').createSignedUrl(path, 60*60*24*365)
-    setForm(f => ({ ...f, image_url: path }))
+    setForm(EMPTY_FORM); setShowForm(false); setEditReq(null); setSaving(false); load()
   }
 
   const handleDelete = async (id) => {
     if (!confirm('Tem a certeza que quer apagar esta requisição?')) return
     const { error } = await supabase.from('requisitions').delete().eq('id', id)
     if (error) { alert('Erro ao apagar: ' + error.message); return }
+    if (selected?.id === id) setSelected(null)
     load()
-  }
-
-  const getImageUrl = async (path) => {
-    if (!path) return null
-    if (path.startsWith('http') || path.startsWith('data:')) return path
-    const { data } = await supabase.storage.from('procureflow-docs').createSignedUrl(path, 3600)
-    return data?.signedUrl || null
   }
 
   const filtered = rows.filter(r => {
@@ -170,7 +150,7 @@ export default function Requisitions() {
             </div>
             <div className="form-group full">
               <label>Descrição do material *</label>
-              <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Descrição detalhada do material a encomendar..." />
+              <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Descrição detalhada do material a encomendar..." style={{minHeight:80}} />
             </div>
             <div className="form-group">
               <label>Quantidade *</label>
@@ -179,7 +159,7 @@ export default function Requisitions() {
             <div className="form-group">
               <label>Unidade</label>
               <select value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}>
-                {['un.','m','kg','cx','rolo','vara','lt','bte','m²','m³'].map(u=><option key={u}>{u}</option>)}
+                {['un.','m','m²','m³','kg','t','lt','cx','rolo','vara','bte','saco','pct'].map(u=><option key={u}>{u}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -200,26 +180,25 @@ export default function Requisitions() {
             </div>
             <div className="form-group full">
               <label>Notas / Especificações técnicas</label>
-              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Marca preferida, normas técnicas, etc." />
+              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Marca preferida, normas técnicas, medidas, referências..." />
             </div>
             <div className="form-group full">
-              <label>Foto / Imagem de referência (opcional)</label>
+              <label>Foto / Imagem de referência</label>
               <input type="file" accept="image/*" ref={fileRef} onChange={handleImageChange} style={{fontSize:12}} />
-              {imagePreview && <img src={imagePreview} alt="preview" style={{marginTop:8,maxWidth:'100%',maxHeight:150,borderRadius:'var(--radius)',objectFit:'cover'}} />}
+              {imagePreview && <img src={imagePreview} alt="preview" style={{marginTop:8,maxWidth:'100%',maxHeight:200,borderRadius:'var(--radius)',objectFit:'contain'}} />}
             </div>
           </div>
 
-          {/* Contacto técnico */}
           <div style={{marginTop:16,paddingTop:16,borderTop:'0.5px solid var(--border)'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:12,display:'flex',alignItems:'center',gap:6}}>
-              <i className="ti ti-user-check" style={{color:'var(--blue)'}}/>
-              Contacto técnico (pessoa que pode dar informações sobre o material)
+            <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--blue)'}}>
+              <i className="ti ti-user-check" style={{marginRight:6}}/>Contacto técnico
             </div>
+            <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:10}}>Pessoa que pode dar informações sobre o material (ex: empresa de colocação, técnico especializado)</div>
             <div className="form-grid">
               <div className="form-group"><label>Nome</label><input value={form.technical_contact_name} onChange={e=>setForm({...form,technical_contact_name:e.target.value})} placeholder="Ex: João Silva" /></div>
-              <div className="form-group"><label>Empresa</label><input value={form.technical_contact_company} onChange={e=>setForm({...form,technical_contact_company:e.target.value})} placeholder="Ex: Empresa de Caixilharia" /></div>
-              <div className="form-group"><label>Telefone</label><input value={form.technical_contact_phone} onChange={e=>setForm({...form,technical_contact_phone:e.target.value})} placeholder="+351 9XX XXX XXX" /></div>
-              <div className="form-group"><label>Notas</label><input value={form.technical_contact_notes} onChange={e=>setForm({...form,technical_contact_notes:e.target.value})} placeholder="Ex: Sabe as medidas exactas das janelas" /></div>
+              <div className="form-group"><label>Empresa</label><input value={form.technical_contact_company} onChange={e=>setForm({...form,technical_contact_company:e.target.value})} placeholder="Ex: Caixilharia Lda" /></div>
+              <div className="form-group"><label>Telefone</label><input value={form.technical_contact_phone} onChange={e=>setForm({...form,technical_contact_phone:e.target.value})} /></div>
+              <div className="form-group"><label>Notas</label><input value={form.technical_contact_notes} onChange={e=>setForm({...form,technical_contact_notes:e.target.value})} placeholder="Ex: Tem as medidas exactas das janelas" /></div>
             </div>
           </div>
 
@@ -230,76 +209,133 @@ export default function Requisitions() {
         </div>
       )}
 
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Requisições ({filtered.length}{filtered.length!==rows.length?` / ${rows.length}`:''})</span>
-          <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditReq(null);setForm(EMPTY_FORM)}}><i className="ti ti-plus"/>Nova</button>
-        </div>
-
-        <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:180,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
-          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
-            <option value="">Todos os estados</option>
-            {['Pendente','Em cotação','Aprovado','Encomendado','Entregue','Cancelado'].map(s=><option key={s}>{s}</option>)}
-          </select>
-          <select value={filterPrio} onChange={e=>setFilterPrio(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
-            <option value="">Todas prioridades</option>
-            {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
-          </select>
-          {(search||filterStatus||filterPrio) && <button className="btn" onClick={()=>{setSearch('');setFilterStatus('');setFilterPrio('')}}>✕</button>}
-        </div>
-
-        {filtered.length === 0
-          ? <div className="empty">{rows.length===0?'Sem requisições.':'Nenhum resultado.'}</div>
-          : <div className="table-wrap">
-              <table>
-                <thead><tr><th>Ref.</th><th>Descrição</th><th>Obra</th><th>Pedido por</th><th>Prio.</th><th>Data nec.</th><th>Estado</th><th>Ações</th></tr></thead>
-                <tbody>
-                  {filtered.map(r=>(
-                    <>
-                      <tr key={r.id} style={{cursor:'pointer'}} onClick={()=>setExpanded(expanded===r.id?null:r.id)}>
-                        <td style={{fontWeight:500}}>{r.ref_number}</td>
-                        <td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</td>
-                        <td style={{fontSize:12,color:'var(--blue)'}}>{r.affaires?.ref_number||'—'}</td>
-                        <td style={{fontSize:12}}>
-                          <div style={{fontWeight:500}}>{r.employees?.emp_code||'—'}</div>
-                          <div style={{color:'var(--text-muted)',fontSize:11}}>{r.employees?.full_name||''}</div>
-                        </td>
-                        <td><span className={PRIO_CLASS[r.priority]||''}>{r.priority}</span></td>
-                        <td style={{fontSize:12}}>{r.needed_by?new Date(r.needed_by).toLocaleDateString('pt-PT'):'—'}</td>
-                        <td><span className={`badge ${STATUS_CLASS[r.status]||''}`}>{r.status}</span></td>
-                        <td>
-                          <div style={{display:'flex',gap:4}}>
-                            <button className="btn btn-sm" onClick={e=>{e.stopPropagation();openEdit(r)}}><i className="ti ti-edit"/></button>
-                            <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={e=>{e.stopPropagation();handleDelete(r.id)}}><i className="ti ti-trash"/></button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expanded===r.id && (
-                        <tr key={r.id+'_exp'}>
-                          <td colSpan={8} style={{background:'var(--bg)',padding:'12px 16px'}}>
-                            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',fontSize:13}}>
-                              <div><span style={{color:'var(--text-muted)'}}>Quantidade: </span>{r.quantity} {r.unit}</div>
-                              <div><span style={{color:'var(--text-muted)'}}>Mín. fornecedores: </span>{r.min_quotes}</div>
-                              {r.notes && <div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Notas: </span>{r.notes}</div>}
-                              {r.technical_contact_name && (
-                                <div style={{gridColumn:'1/-1',marginTop:8,padding:'8px 12px',background:'var(--blue-light)',borderRadius:'var(--radius)'}}>
-                                  <div style={{fontSize:12,fontWeight:600,color:'var(--blue)',marginBottom:4}}><i className="ti ti-user-check" style={{marginRight:4}}/>Contacto técnico</div>
-                                  <div style={{fontSize:12}}>{r.technical_contact_name} {r.technical_contact_company?`— ${r.technical_contact_company}`:''}</div>
-                                  {r.technical_contact_phone && <div style={{fontSize:12,marginTop:2}}><i className="ti ti-phone" style={{marginRight:4}}/>{r.technical_contact_phone}</div>}
-                                  {r.technical_contact_notes && <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2,fontStyle:'italic'}}>{r.technical_contact_notes}</div>}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  ))}
-                </tbody>
-              </table>
+      <div style={{display:'flex',gap:12}}>
+        {/* Lista */}
+        <div style={{flex:'0 0 420px',minWidth:0}}>
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Requisições ({filtered.length}{filtered.length!==rows.length?` / ${rows.length}`:''})</span>
+              <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditReq(null);setForm(EMPTY_FORM);setSelected(null)}}><i className="ti ti-plus"/>Nova</button>
             </div>
-        }
+
+            <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:120,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+                <option value="">Todos estados</option>
+                {['Pendente','Em cotação','Aprovado','Encomendado','Entregue','Cancelado'].map(s=><option key={s}>{s}</option>)}
+              </select>
+              <select value={filterPrio} onChange={e=>setFilterPrio(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+                <option value="">Todas prio.</option>
+                {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
+              </select>
+              {(search||filterStatus||filterPrio) && <button className="btn" onClick={()=>{setSearch('');setFilterStatus('');setFilterPrio('')}}>✕</button>}
+            </div>
+
+            {filtered.length === 0
+              ? <div className="empty">{rows.length===0?'Sem requisições.':'Nenhum resultado.'}</div>
+              : <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {filtered.map(r=>(
+                    <div key={r.id}
+                      onClick={()=>setSelected(selected?.id===r.id?null:r)}
+                      style={{border:`1px solid ${selected?.id===r.id?'var(--blue)':'var(--border)'}`,borderLeft:`4px solid ${PRIO_COLOR[r.priority]||'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',background:selected?.id===r.id?'var(--blue-light)':'var(--bg-card)',transition:'all 0.1s'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                            <span style={{fontWeight:600,fontSize:12,color:'var(--text-muted)'}}>{r.ref_number}</span>
+                            {r.affaires && <span style={{fontSize:11,color:'var(--blue)',background:'var(--blue-light)',padding:'1px 6px',borderRadius:10}}>{r.affaires.ref_number}</span>}
+                          </div>
+                          <div style={{fontWeight:500,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
+                          <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
+                            {r.quantity} {r.unit}
+                            {r.needed_by && ` · Preciso: ${new Date(r.needed_by).toLocaleDateString('pt-PT')}`}
+                            {r.employees?.emp_code && ` · ${r.employees.emp_code}`}
+                          </div>
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4,flexShrink:0}}>
+                          <span className={`badge ${STATUS_CLASS[r.status]||''}`}>{r.status}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:PRIO_COLOR[r.priority],background:PRIO_BG[r.priority],padding:'1px 6px',borderRadius:10}}>{r.priority}</span>
+                        </div>
+                      </div>
+                      <div style={{display:'flex',gap:4,marginTop:8}} onClick={e=>e.stopPropagation()}>
+                        <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/>Editar</button>
+                        <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/>Apagar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+        </div>
+
+        {/* Detalhe */}
+        {selected && (
+          <div style={{flex:1,minWidth:0}}>
+            <div className="card" style={{position:'sticky',top:0}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:12,color:'var(--text-muted)',fontWeight:500,marginBottom:4}}>{selected.ref_number} · criado por <strong>{selected.employees?.emp_code||'—'}</strong> {selected.employees?.full_name||''}</div>
+                  <div style={{fontSize:17,fontWeight:600,marginBottom:6}}>{selected.description}</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    <span className={`badge ${STATUS_CLASS[selected.status]||''}`}>{selected.status}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:PRIO_COLOR[selected.priority],background:PRIO_BG[selected.priority],padding:'2px 8px',borderRadius:10}}>Prioridade {selected.priority}</span>
+                    {selected.affaires && <span style={{fontSize:11,color:'var(--blue)',background:'var(--blue-light)',padding:'2px 8px',borderRadius:10}}><i className="ti ti-building" style={{marginRight:3}}/>{selected.affaires.ref_number} — {selected.affaires.name}</span>}
+                  </div>
+                </div>
+                <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
+              </div>
+
+              {/* Informações principais */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',fontSize:13,marginBottom:16,padding:'12px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
+                <div><span style={{color:'var(--text-muted)'}}>Quantidade: </span><strong>{selected.quantity} {selected.unit}</strong></div>
+                <div><span style={{color:'var(--text-muted)'}}>Mín. fornecedores: </span><strong>{selected.min_quotes}</strong></div>
+                {selected.needed_by && <div><span style={{color:'var(--text-muted)'}}>Data necessária: </span><strong style={{color:'var(--amber)'}}>{new Date(selected.needed_by).toLocaleDateString('pt-PT')}</strong></div>}
+                <div><span style={{color:'var(--text-muted)'}}>Criado em: </span>{new Date(selected.created_at).toLocaleDateString('pt-PT')}</div>
+              </div>
+
+              {/* Notas */}
+              {selected.notes && (
+                <div style={{marginBottom:14,padding:'10px 12px',background:'var(--bg)',borderRadius:'var(--radius)',borderLeft:'3px solid var(--blue)'}}>
+                  <div style={{fontSize:11,fontWeight:600,color:'var(--blue)',marginBottom:4}}>📋 ESPECIFICAÇÕES / NOTAS</div>
+                  <div style={{fontSize:13,whiteSpace:'pre-wrap'}}>{selected.notes}</div>
+                </div>
+              )}
+
+              {/* Imagem */}
+              {selected.image_url && (
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>🖼️ IMAGEM DE REFERÊNCIA</div>
+                  <ImageFromStorage path={selected.image_url} />
+                </div>
+              )}
+
+              {/* Contacto técnico */}
+              {selected.technical_contact_name && (
+                <div style={{marginBottom:14,padding:'12px',background:'var(--blue-light)',borderRadius:'var(--radius)',border:'0.5px solid rgba(24,95,165,0.2)'}}>
+                  <div style={{fontSize:11,fontWeight:600,color:'var(--blue)',marginBottom:8}}>👤 CONTACTO TÉCNICO</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',fontSize:13}}>
+                    <div><span style={{color:'var(--text-muted)'}}>Nome: </span><strong>{selected.technical_contact_name}</strong></div>
+                    {selected.technical_contact_company && <div><span style={{color:'var(--text-muted)'}}>Empresa: </span><strong>{selected.technical_contact_company}</strong></div>}
+                    {selected.technical_contact_phone && (
+                      <div style={{gridColumn:'1/-1'}}>
+                        <span style={{color:'var(--text-muted)'}}>Telefone: </span>
+                        <a href={`tel:${selected.technical_contact_phone}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}>
+                          <i className="ti ti-phone" style={{marginRight:4}}/>{selected.technical_contact_phone}
+                        </a>
+                      </div>
+                    )}
+                    {selected.technical_contact_notes && <div style={{gridColumn:'1/-1',fontSize:12,color:'var(--text-muted)',fontStyle:'italic'}}>{selected.technical_contact_notes}</div>}
+                  </div>
+                </div>
+              )}
+
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <button className="btn btn-primary" style={{flex:1,justifyContent:'center'}} onClick={()=>openEdit(selected)}>
+                  <i className="ti ti-edit"/>Editar requisição
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
