@@ -21,7 +21,7 @@ export default function ClientPayments() {
     const [{ data: cp }, { data: sp }, { data: pp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
       supabase.from('client_payments').select('*, clients(name), affaires(name,ref_number,id), client_orders(ref_number)').order('due_date'),
       supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)))').order('due_date'),
-      supabase.from('order_partial_payments').select('*, orders(ref_number, suppliers(name), requisitions(description,affaires(name,ref_number,id))), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
+      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id))), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
       supabase.from('orders').select('id,ref_number,suppliers(name)').not('status','eq','Entregue').order('ref_number'),
@@ -76,16 +76,16 @@ export default function ClientPayments() {
 
   const filteredPartials = supplierPartials.filter(p => {
     const matchS = !s || p.orders?.suppliers?.name?.toLowerCase().includes(s) || p.orders?.ref_number?.toLowerCase().includes(s)
-    const matchA = !fa || p.orders?.requisitions?.affaires?.id === fa
+    const matchA = !fa || p.orders?.requisitions?.affaires?.id === fa || p.orders?.requisitions?.affaire_id === fa
     return matchS && matchA
   })
 
   // Totais
-  const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalSupplierPending = supplierInvoices.filter(p=>p.status!=='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalSupplierPaid = supplierInvoices.filter(p=>p.status==='Pago').reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalPartialsPaid = supplierPartials.reduce((s,p)=>s+parseFloat(p.amount||0),0)
+  const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
+  const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
+  const totalSupplierPending = supplierInvoices.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
+  const totalSupplierPaid = supplierInvoices.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
+  const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 

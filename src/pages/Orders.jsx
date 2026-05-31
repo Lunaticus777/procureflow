@@ -37,6 +37,14 @@ export default function Orders() {
 
   const selectOrder = (o) => { setSelected(o); loadPayments(o.id) }
 
+  const handleDelete = async (id) => {
+    if (!confirm('Apagar esta encomenda? Os pagamentos associados também serão apagados.')) return
+    const { error } = await supabase.from('orders').delete().eq('id', id)
+    if (error) { alert('Erro ao apagar: ' + error.message); return }
+    if (selected?.id === id) setSelected(null)
+    load()
+  }
+
   const updateStatus = async (id, status, extra={}) => {
     await supabase.from('orders').update({status,...extra}).eq('id',id)
     load()
@@ -54,7 +62,7 @@ export default function Orders() {
   const filtered = orders.filter(o => {
     const s = search.toLowerCase()
     const matchSearch = !s || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.suppliers?.name?.toLowerCase().includes(s)
-    const matchAffaire = !filterAffaire || o.requisitions?.affaires?.id === filterAffaire
+    const matchAffaire = !filterAffaire || o.requisitions?.affaires?.id === filterAffaire || o.requisitions?.affaires?.ref_number === filterAffaire
     const matchStatus = !filterStatus || o.status === filterStatus
     return matchSearch && matchAffaire && matchStatus
   })
@@ -85,7 +93,7 @@ export default function Orders() {
           ? <div className="empty">{orders.length===0?'Sem encomendas.':'Nenhum resultado.'}</div>
           : <div className="table-wrap">
               <table>
-                <thead><tr><th>Enc.</th><th>Material</th><th>Obra</th><th>Fornecedor</th><th>Valor</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Enc.</th><th>Material</th><th>Obra</th><th>Fornecedor</th><th>Valor</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                   {filtered.map(o=>(
                     <tr key={o.id} style={{cursor:'pointer',background:selected?.id===o.id?'var(--bg)':''}} onClick={()=>selectOrder(o)}>
@@ -95,6 +103,9 @@ export default function Orders() {
                       <td style={{fontSize:12}}>{o.suppliers?.name}</td>
                       <td style={{fontSize:12}}>{o.total_amount?`€ ${parseFloat(o.total_amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}`:'—'}</td>
                       <td><span className={`badge ${STATUS_CLASS[o.status]||''}`}>{o.status}</span></td>
+                      <td onClick={e=>e.stopPropagation()}>
+                        <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(o.id)} title="Apagar encomenda"><i className="ti ti-trash"/></button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
