@@ -181,7 +181,7 @@ export default function Affaires() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Negócios / Obras ({affaires.length})</span>
-            <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditAffaire(null)}}><i className="ti ti-plus"/>Novo</button>
+            <button data-new-affaire="true" className="btn btn-primary" onClick={()=>{setShowForm(true);setEditAffaire(null)}}><i className="ti ti-plus"/>Novo</button>
           </div>
           {affaires.length === 0
             ? <div className="empty">Sem negócios.</div>

@@ -85,7 +85,7 @@ function Layout() {
         <header className="topbar">
           <div className="topbar-title">{title}</div>
           <div className="topbar-actions">
-            <button className="btn btn-primary" onClick={()=>nav('/affaires')} style={{fontSize:13}}>
+            <button className="btn btn-primary" onClick={()=>{ nav('/affaires'); setTimeout(()=>{ const btn = document.querySelector('[data-new-affaire]'); if(btn) btn.click() }, 100) }} style={{fontSize:13}}>
               <i className="ti ti-plus" />Novo Negócio
             </button>
             <button className="btn" onClick={()=>nav('/requisitions')} style={{fontSize:13}}>
