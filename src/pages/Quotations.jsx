@@ -88,7 +88,8 @@ export default function Quotations() {
 
   const handleDelete = async (id) => {
     if (!confirm('Tem a certeza que quer apagar esta cotação?')) return
-    await supabase.from('quotations').delete().eq('id', id)
+    const { error } = await supabase.from('quotations').delete().eq('id', id)
+    if (error) { alert('Erro ao apagar: ' + error.message); return }
     loadQuotes(selReq.id)
   }
 

@@ -94,7 +94,8 @@ export default function Requisitions() {
 
   const handleDelete = async (id) => {
     if (!confirm('Tem a certeza que quer apagar esta requisição?')) return
-    await supabase.from('requisitions').delete().eq('id', id)
+    const { error } = await supabase.from('requisitions').delete().eq('id', id)
+    if (error) { alert('Erro ao apagar: ' + error.message); return }
     load()
   }
 

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const STOP_COLORS = { 'Recolha':'var(--blue)', 'Passagem':'var(--amber)', 'Entrega final':'var(--green)' }
+const CONTACT_STATUS_CLASS = { 'Por fazer':'badge-pending', 'Contactado':'badge-quotation', 'Confirmado':'badge-approved', 'Recusado':'badge-cancelled' }
+
 export default function TransportAgenda() {
   const [agenda, setAgenda] = useState([])
   const [carriers, setCarriers] = useState([])
@@ -9,31 +12,45 @@ export default function TransportAgenda() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showStops, setShowStops] = useState(null)
+  const [search, setSearch] = useState('')
   const [form, setForm] = useState({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'' })
   const [stopForm, setStopForm] = useState({ carrier_id:'', address:'', city:'', stop_type:'Entrega final', arrival_time:'', notes:'' })
   const [saving, setSaving] = useState(false)
-  const [search, setSearch] = useState('')
 
   const today = new Date()
-  const in3days = new Date(today); in3days.setDate(today.getDate() + 3)
+  const in3days = new Date(); in3days.setDate(today.getDate() + 3)
+  const todayStr = today.toISOString().split('T')[0]
 
   const load = async () => {
-    const [{ data: ag }, { data: ca }, { data: co }] = await Promise.all([
-      supabase.from('transport_agenda')
-        .select('*, carriers(name,vehicle_type,phone,plate), client_orders(ref_number,description,delivery_address,delivery_city)')
-        .gte('planned_date', today.toISOString().split('T')[0])
-        .order('planned_date'),
-      supabase.from('carriers').select('*').eq('active', true).order('name'),
-      supabase.from('client_orders').select('id,ref_number,description,delivery_address,delivery_city').not('status','eq','Entregue').not('status','eq','Cancelado').order('ref_number'),
-    ])
-    setAgenda(ag || [])
-    setCarriers(ca || [])
-    setClientOrders(co || [])
+    try {
+      const [{ data: ag, error: e1 }, { data: ca }, { data: co }] = await Promise.all([
+        supabase.from('transport_agenda')
+          .select('*, carriers(name,vehicle_type,phone,plate), client_orders(ref_number,description,delivery_address,delivery_city)')
+          .gte('planned_date', todayStr)
+          .order('planned_date'),
+        supabase.from('carriers').select('*').eq('active', true).order('name'),
+        supabase.from('client_orders')
+          .select('id,ref_number,description,delivery_address,delivery_city')
+          .not('status','eq','Entregue')
+          .not('status','eq','Cancelado')
+          .order('ref_number'),
+      ])
+      if (e1) console.error('Transport load error:', e1)
+      setAgenda(ag || [])
+      setCarriers(ca || [])
+      setClientOrders(co || [])
+    } catch (err) {
+      console.error('Load error:', err)
+    }
     setLoading(false)
   }
 
   const loadStops = async (agendaId) => {
-    const { data } = await supabase.from('transport_stops').select('*, carriers(name,phone)').eq('transport_agenda_id', agendaId).order('stop_order')
+    const { data } = await supabase
+      .from('transport_stops')
+      .select('*, carriers(name,phone)')
+      .eq('transport_agenda_id', agendaId)
+      .order('stop_order')
     setStops(s => ({ ...s, [agendaId]: data || [] }))
   }
 
@@ -42,45 +59,48 @@ export default function TransportAgenda() {
   const handleSave = async () => {
     if (!form.carrier_id || !form.planned_date) return
     setSaving(true)
-    const contactDate = new Date(form.planned_date)
-    contactDate.setDate(contactDate.getDate() - 3)
-
-    // Auto-fill load from client order
-    let loadDesc = form.load_description
-    if (form.client_order_id && !loadDesc) {
-      const order = clientOrders.find(o => o.id === form.client_order_id)
-      if (order) loadDesc = `${order.ref_number} — ${order.description?.slice(0,80)}`
-    }
-
-    const { data: inserted } = await supabase.from('transport_agenda').insert({
-      carrier_id: form.carrier_id,
-      planned_date: form.planned_date,
-      departure_time: form.departure_time || null,
-      load_description: loadDesc,
-      client_order_id: form.client_order_id || null,
-      contact_date: contactDate.toISOString().split('T')[0],
-      contact_status: 'Por fazer',
-      notes: form.notes,
-    }).select().single()
-
-    // Auto-create delivery stop if client order selected
-    if (inserted && form.client_order_id) {
-      const order = clientOrders.find(o => o.id === form.client_order_id)
-      if (order?.delivery_address) {
-        await supabase.from('transport_stops').insert({
-          transport_agenda_id: inserted.id,
-          stop_order: 1,
-          carrier_id: form.carrier_id,
-          address: order.delivery_address,
-          city: order.delivery_city,
-          stop_type: 'Entrega final',
-        })
+    try {
+      const contactDate = new Date(form.planned_date)
+      contactDate.setDate(contactDate.getDate() - 3)
+      let loadDesc = form.load_description
+      if (form.client_order_id && !loadDesc) {
+        const order = clientOrders.find(o => o.id === form.client_order_id)
+        if (order) loadDesc = `${order.ref_number} — ${order.description?.slice(0,80)}`
       }
-    }
+      const { data: inserted } = await supabase.from('transport_agenda').insert({
+        carrier_id: form.carrier_id,
+        planned_date: form.planned_date,
+        departure_time: form.departure_time || null,
+        load_description: loadDesc,
+        client_order_id: form.client_order_id || null,
+        contact_date: contactDate.toISOString().split('T')[0],
+        contact_status: 'Por fazer',
+        notes: form.notes,
+      }).select().single()
 
-    setForm({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'' })
-    setShowForm(false)
+      if (inserted && form.client_order_id) {
+        const order = clientOrders.find(o => o.id === form.client_order_id)
+        if (order?.delivery_address) {
+          await supabase.from('transport_stops').insert({
+            transport_agenda_id: inserted.id, stop_order: 1,
+            carrier_id: form.carrier_id, address: order.delivery_address,
+            city: order.delivery_city, stop_type: 'Entrega final',
+          })
+        }
+      }
+      setForm({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'' })
+      setShowForm(false)
+      load()
+    } catch (err) {
+      console.error('Save error:', err)
+    }
     setSaving(false)
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Apagar este transporte agendado?')) return
+    const { error } = await supabase.from('transport_agenda').delete().eq('id', id)
+    if (error) { alert('Erro ao apagar: ' + error.message); return }
     load()
   }
 
@@ -88,14 +108,10 @@ export default function TransportAgenda() {
     if (!stopForm.address) return
     const existingStops = stops[agendaId] || []
     await supabase.from('transport_stops').insert({
-      transport_agenda_id: agendaId,
-      stop_order: existingStops.length + 1,
-      carrier_id: stopForm.carrier_id || null,
-      address: stopForm.address,
-      city: stopForm.city,
-      stop_type: stopForm.stop_type,
-      arrival_time: stopForm.arrival_time || null,
-      notes: stopForm.notes,
+      transport_agenda_id: agendaId, stop_order: existingStops.length + 1,
+      carrier_id: stopForm.carrier_id || null, address: stopForm.address,
+      city: stopForm.city, stop_type: stopForm.stop_type,
+      arrival_time: stopForm.arrival_time || null, notes: stopForm.notes,
     })
     setStopForm({ carrier_id:'', address:'', city:'', stop_type:'Entrega final', arrival_time:'', notes:'' })
     loadStops(agendaId)
@@ -106,10 +122,12 @@ export default function TransportAgenda() {
     load()
   }
 
-  const statusClass = { 'Por fazer':'badge-pending','Contactado':'badge-quotation','Confirmado':'badge-approved','Recusado':'badge-cancelled' }
-  const stopTypeColor = { 'Recolha':'var(--blue)','Passagem':'var(--amber)','Entrega final':'var(--green)' }
-
   const needsContact = agenda.filter(a => new Date(a.contact_date) <= in3days && a.contact_status === 'Por fazer')
+
+  const filteredAgenda = agenda.filter(a => {
+    const s = search.toLowerCase()
+    return !s || a.carriers?.name?.toLowerCase().includes(s) || a.load_description?.toLowerCase().includes(s) || a.client_orders?.ref_number?.toLowerCase().includes(s)
+  })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -121,7 +139,7 @@ export default function TransportAgenda() {
           <div>
             <div style={{fontWeight:600,fontSize:13,color:'#633806'}}>⚠️ {needsContact.length} transporte(s) a confirmar nos próximos 3 dias!</div>
             <div style={{fontSize:12,color:'#854F0B',marginTop:2}}>
-              {needsContact.map(a => `${a.carriers?.name} — ${new Date(a.planned_date).toLocaleDateString('pt-PT')}`).join(' | ')}
+              {needsContact.map(a => `${a.carriers?.name} — ${new Date(a.planned_date).toLocaleDateString('pt-PT')} · ${a.carriers?.phone||''}`).join(' | ')}
             </div>
           </div>
         </div>
@@ -149,15 +167,15 @@ export default function TransportAgenda() {
             <div className="form-group"><label>Hora de saída</label>
               <input type="time" value={form.departure_time} onChange={e=>setForm({...form,departure_time:e.target.value})} />
             </div>
-            <div className="form-group full"><label>Descrição da carga (deixa vazio para preencher auto)</label>
-              <input value={form.load_description} onChange={e=>setForm({...form,load_description:e.target.value})} placeholder="Ex: Cabo UTP + Disjuntores para Lisboa" />
+            <div className="form-group full"><label>Descrição da carga</label>
+              <input value={form.load_description} onChange={e=>setForm({...form,load_description:e.target.value})} placeholder="Deixa vazio para preencher automaticamente" />
             </div>
             <div className="form-group full"><label>Notas</label>
               <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} />
             </div>
           </div>
           <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'8px 12px',fontSize:12,color:'var(--text-muted)',marginTop:4}}>
-            <i className="ti ti-info-circle" style={{marginRight:6}}/>Alerta automático criado 3 dias antes para contactar o transportador.
+            <i className="ti ti-info-circle" style={{marginRight:6}}/>Alerta automático 3 dias antes para contactar o transportador.
           </div>
           <div className="form-actions">
             <button className="btn" onClick={()=>setShowForm(false)}>Cancelar</button>
@@ -172,32 +190,39 @@ export default function TransportAgenda() {
           <button className="btn btn-primary" onClick={()=>setShowForm(true)}><i className="ti ti-plus"/>Agendar</button>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:12}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar transportador, carga, encomenda..." style={{flex:1,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar transportador, carga..." style={{flex:1,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
           {search && <button className="btn" onClick={()=>setSearch('')}>✕</button>}
         </div>
         {filteredAgenda.length === 0
           ? <div className="empty">Sem transportes agendados.</div>
           : filteredAgenda.map(a => {
               const urgent = new Date(a.contact_date) <= in3days && a.contact_status === 'Por fazer'
-              const agendaStops = stops[a.id]
+              const agendaStops = stops[a.id] || []
               return (
                 <div key={a.id} style={{border:`0.5px solid ${urgent?'var(--amber)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'12px',marginBottom:10,background:urgent?'rgba(186,117,23,0.03)':''}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
                     <div>
-                      <div style={{fontWeight:600,fontSize:13}}>{a.carriers?.name} <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:12}}>— {a.carriers?.vehicle_type} {a.carriers?.plate}</span></div>
+                      <div style={{fontWeight:600,fontSize:13}}>
+                        {a.carriers?.name}
+                        <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:12,marginLeft:6}}>— {a.carriers?.vehicle_type} {a.carriers?.plate}</span>
+                      </div>
                       <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
-                        📅 {new Date(a.planned_date).toLocaleDateString('pt-PT')} {a.departure_time?`às ${a.departure_time.slice(0,5)}`:''}
+                        📅 {new Date(a.planned_date).toLocaleDateString('pt-PT')}
+                        {a.departure_time ? ` às ${a.departure_time.slice(0,5)}` : ''}
                         {urgent && <span style={{color:'var(--amber)',fontWeight:600,marginLeft:8}}>⚠️ Contactar até {new Date(a.contact_date).toLocaleDateString('pt-PT')}</span>}
                       </div>
                       {a.load_description && <div style={{fontSize:12,marginTop:4,color:'var(--text-muted)'}}><i className="ti ti-package" style={{marginRight:4}}/>{a.load_description}</div>}
                       {a.client_orders && <div style={{fontSize:11,marginTop:2,color:'var(--blue)'}}><i className="ti ti-link" style={{marginRight:4}}/>{a.client_orders.ref_number} — {a.client_orders.delivery_city}</div>}
                     </div>
                     <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-                      <span className={`badge ${statusClass[a.contact_status]||''}`}>{a.contact_status}</span>
+                      <span className={`badge ${CONTACT_STATUS_CLASS[a.contact_status]||''}`}>{a.contact_status}</span>
                       {a.contact_status==='Por fazer' && <button className="btn btn-sm" onClick={()=>updateStatus(a.id,'Contactado')}>Contactado</button>}
                       {a.contact_status==='Contactado' && <button className="btn btn-sm btn-primary" onClick={()=>updateStatus(a.id,'Confirmado')}>Confirmar</button>}
                       <button className="btn btn-sm" onClick={()=>{setShowStops(showStops===a.id?null:a.id);if(!stops[a.id])loadStops(a.id)}}>
                         <i className="ti ti-map"/>Trajeto
+                      </button>
+                      <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(a.id)}>
+                        <i className="ti ti-trash"/>
                       </button>
                     </div>
                   </div>
@@ -205,11 +230,11 @@ export default function TransportAgenda() {
                   {showStops === a.id && (
                     <div style={{marginTop:12,paddingTop:12,borderTop:'0.5px solid var(--border)'}}>
                       <div style={{fontWeight:500,fontSize:12,marginBottom:8}}>Trajeto / Paragens:</div>
-                      {agendaStops && agendaStops.length > 0 && (
+                      {agendaStops.length > 0 && (
                         <div style={{marginBottom:10}}>
                           {agendaStops.map((s,i) => (
                             <div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'0.5px solid var(--border)'}}>
-                              <div style={{width:22,height:22,borderRadius:'50%',background:stopTypeColor[s.stop_type]||'var(--blue)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,flexShrink:0}}>{i+1}</div>
+                              <div style={{width:22,height:22,borderRadius:'50%',background:STOP_COLORS[s.stop_type]||'var(--blue)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,flexShrink:0}}>{i+1}</div>
                               <div style={{flex:1}}>
                                 <div style={{fontSize:13,fontWeight:500}}>{s.address}{s.city?`, ${s.city}`:''}</div>
                                 <div style={{fontSize:11,color:'var(--text-muted)'}}>{s.stop_type} {s.arrival_time?`· ${s.arrival_time.slice(0,5)}`:''} {s.carriers?.name?`· ${s.carriers.name}`:''}</div>
@@ -242,7 +267,9 @@ export default function TransportAgenda() {
                             <input type="time" value={stopForm.arrival_time} onChange={e=>setStopForm({...stopForm,arrival_time:e.target.value})} />
                           </div>
                         </div>
-                        <button className="btn btn-primary btn-sm" style={{marginTop:8}} onClick={()=>addStop(a.id)} disabled={!stopForm.address}>Adicionar paragem</button>
+                        <button className="btn btn-primary btn-sm" style={{marginTop:8}} onClick={()=>addStop(a.id)} disabled={!stopForm.address}>
+                          Adicionar paragem
+                        </button>
                       </div>
                     </div>
                   )}
