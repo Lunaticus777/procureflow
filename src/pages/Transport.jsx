@@ -3,114 +3,263 @@ import { supabase } from '../lib/supabase'
 
 export default function Transport() {
   const [carriers, setCarriers] = useState([])
+  const [selected, setSelected] = useState(null)
   const [schedules, setSchedules] = useState([])
+  const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name:'', vehicle_type:'Furgão', plate:'', phone:'', max_load_kg:'', routes:'' })
+  const [editCarrier, setEditCarrier] = useState(null)
+  const [showScheduleForm, setShowScheduleForm] = useState(false)
+  const [search, setSearch] = useState('')
+  const [form, setForm] = useState({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'' })
+  const [schedForm, setSchedForm] = useState({ date:'', depart_time:'', return_time:'', current_load:'0', status:'Disponível', notes:'' })
   const [saving, setSaving] = useState(false)
+
   const today = new Date().toISOString().split('T')[0]
 
   const load = async () => {
-    const [{ data: c }, { data: s }] = await Promise.all([
-      supabase.from('carriers').select('*').eq('active',true).order('name'),
-      supabase.from('carrier_schedules').select('*, carriers(name)').eq('date', today),
-    ])
-    setCarriers(c||[])
-    setSchedules(s||[])
+    const { data } = await supabase.from('carriers').select('*').eq('active', true).order('name')
+    setCarriers(data || [])
     setLoading(false)
+  }
+
+  const loadDetail = async (c) => {
+    const [{ data: sch }, { data: agenda }] = await Promise.all([
+      supabase.from('carrier_schedules').select('*').eq('carrier_id', c.id).gte('date', today).order('date').limit(10),
+      supabase.from('transport_agenda').select('*, client_orders(ref_number,delivery_city)').eq('carrier_id', c.id).order('planned_date',{ascending:false}).limit(10),
+    ])
+    setSchedules(sch || [])
+    setHistory(agenda || [])
   }
 
   useEffect(() => { load() }, [])
 
-  const getSchedule = (carrierId) => schedules.find(s=>s.carrier_id===carrierId)
+  const selectCarrier = (c) => { setSelected(c); loadDetail(c) }
+
+  const openEdit = (c) => {
+    setEditCarrier(c)
+    setForm({ name:c.name, vehicle_type:c.vehicle_type||'Furgão', plate:c.plate||'', phone:c.phone||'', mobile:c.mobile||'', email:c.email||'', max_load_kg:c.max_load_kg||'', routes:c.routes||'', notes:c.notes||'' })
+    setShowForm(true)
+  }
 
   const handleSave = async () => {
     if (!form.name) return
     setSaving(true)
-    await supabase.from('carriers').insert({ ...form, max_load_kg: parseFloat(form.max_load_kg)||null })
-    setForm({ name:'', vehicle_type:'Furgão', plate:'', phone:'', max_load_kg:'', routes:'' })
-    setShowForm(false)
-    setSaving(false)
-    load()
+    if (editCarrier) {
+      await supabase.from('carriers').update({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null }).eq('id', editCarrier.id)
+      setSelected({...editCarrier,...form})
+    } else {
+      await supabase.from('carriers').insert({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null })
+    }
+    setForm({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'' })
+    setShowForm(false); setEditCarrier(null); setSaving(false); load()
   }
 
-  const loadPct = (s) => {
-    if (!s || !s.current_load) return 0
-    const carrier = carriers.find(c=>c.id===s.carrier_id)
-    if (!carrier?.max_load_kg) return 0
-    return Math.round((s.current_load / carrier.max_load_kg) * 100)
+  const handleDelete = async (id) => {
+    if (!confirm('Arquivar este transportador?')) return
+    await supabase.from('carriers').update({ active: false }).eq('id', id)
+    setSelected(null); load()
   }
+
+  const handleScheduleSave = async () => {
+    if (!schedForm.date) return
+    setSaving(true)
+    await supabase.from('carrier_schedules').insert({ ...schedForm, carrier_id: selected.id, current_load: parseFloat(schedForm.current_load)||0 })
+    setSchedForm({ date:'', depart_time:'', return_time:'', current_load:'0', status:'Disponível', notes:'' })
+    setShowScheduleForm(false); setSaving(false)
+    loadDetail(selected)
+  }
+
+  const todaySchedule = schedules.find(s => s.date === today)
+  const loadPct = todaySchedule && selected?.max_load_kg ? Math.min(100, Math.round((parseFloat(todaySchedule.current_load||0)/parseFloat(selected.max_load_kg))*100)) : 0
+
+  const filtered = carriers.filter(c => {
+    const s = search.toLowerCase()
+    return !s || c.name?.toLowerCase().includes(s) || c.routes?.toLowerCase().includes(s) || c.plate?.toLowerCase().includes(s)
+  })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
     <div>
       {showForm && (
-        <div className="card" style={{maxWidth:560,marginBottom:16}}>
-          <div className="card-header"><span className="card-title">Novo Transportador</span></div>
+        <div className="card" style={{maxWidth:620,marginBottom:16}}>
+          <div className="card-header"><span className="card-title">{editCarrier?'Editar Transportador':'Novo Transportador'}</span></div>
           <div className="form-grid">
-            <div className="form-group full"><label>Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nome do motorista" /></div>
+            <div className="form-group full"><label>Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nome do motorista/empresa" /></div>
             <div className="form-group"><label>Tipo de veículo</label>
               <select value={form.vehicle_type} onChange={e=>setForm({...form,vehicle_type:e.target.value})}>
-                {['Furgão','Carrinha','Camioneta','Camião'].map(t=><option key={t}>{t}</option>)}
+                {['Furgão','Carrinha','Camioneta','Camião','Moto'].map(t=><option key={t}>{t}</option>)}
               </select>
             </div>
-            <div className="form-group"><label>Matrícula</label><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value})} placeholder="12-AB-34" /></div>
-            <div className="form-group"><label>Telemóvel</label><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+351 9XX XXX XXX" /></div>
+            <div className="form-group"><label>Matrícula</label><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value})} placeholder="AB-123-CD" /></div>
+            <div className="form-group"><label>Telefone</label><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></div>
+            <div className="form-group"><label>Telemóvel</label><input value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} /></div>
+            <div className="form-group"><label>Email</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} /></div>
             <div className="form-group"><label>Carga máx. (kg)</label><input type="number" value={form.max_load_kg} onChange={e=>setForm({...form,max_load_kg:e.target.value})} /></div>
-            <div className="form-group full"><label>Rotas habituais</label><input value={form.routes} onChange={e=>setForm({...form,routes:e.target.value})} placeholder="Lisboa / Setúbal" /></div>
+            <div className="form-group full"><label>Rotas habituais</label><input value={form.routes} onChange={e=>setForm({...form,routes:e.target.value})} placeholder="Ex: Lisboa / Setúbal / Almada" /></div>
+            <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
           </div>
           <div className="form-actions">
-            <button className="btn" onClick={()=>setShowForm(false)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':'Guardar'}</button>
+            <button className="btn" onClick={()=>{setShowForm(false);setEditCarrier(null)}}>Cancelar</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editCarrier?'Guardar':'Guardar Transportador'}</button>
           </div>
         </div>
       )}
 
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <span className="card-title">Transportadores — {new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long'})}</span>
+      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+        {/* Lista */}
+        <div style={{width:260,flexShrink:0}}>
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Transportadores ({carriers.length})</span>
+              <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditCarrier(null)}}><i className="ti ti-plus"/>Novo</button>
+            </div>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+            {filtered.length===0 ? <div className="empty">Sem transportadores.</div>
+              : <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {filtered.map(c=>{
+                    const sch = schedules.find ? null : null // loaded on select
+                    return (
+                      <div key={c.id} onClick={()=>selectCarrier(c)}
+                        style={{border:`1px solid ${selected?.id===c.id?'var(--blue)':'var(--border)'}`,borderLeft:`4px solid ${selected?.id===c.id?'var(--blue)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',background:selected?.id===c.id?'var(--blue-light)':'var(--bg-card)'}}>
+                        <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
+                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{c.vehicle_type} · {c.plate||'—'}</div>
+                        <div style={{fontSize:11,color:'var(--text-muted)'}}>{c.routes||'—'}</div>
+                        {c.phone && <div style={{fontSize:11,color:'var(--blue)',marginTop:2}}>{c.phone}</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+            }
           </div>
-          <button className="btn btn-primary" onClick={()=>setShowForm(true)}><i className="ti ti-plus"/>Novo</button>
         </div>
 
-        {carriers.length===0
-          ? <div className="empty">Sem transportadores. Adiciona o primeiro!</div>
-          : <div className="transport-grid">
-              {carriers.map(c=>{
-                const sch = getSchedule(c.id)
-                const pct = loadPct(sch)
-                const avail = !sch || sch.status === 'Disponível'
-                return (
-                  <div key={c.id} className="transport-card">
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                      <div>
-                        <div style={{fontWeight:600,fontSize:14}}><i className="ti ti-truck" style={{fontSize:14,verticalAlign:'-2px',marginRight:4}}/>{c.name}</div>
-                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{c.vehicle_type} · {c.plate}</div>
-                      </div>
-                      <span className={`badge ${avail?'badge-approved':'badge-critical'}`}>{avail?'Disponível':'Ocupado'}</span>
-                    </div>
-                    <div className="tc-row"><span style={{color:'var(--text-muted)'}}>Rota</span><span>{c.routes||'—'}</span></div>
-                    <div className="tc-row"><span style={{color:'var(--text-muted)'}}>Carga máx.</span><span>{c.max_load_kg ? `${c.max_load_kg} kg` : '—'}</span></div>
-                    {sch && <>
-                      <div className="tc-row"><span style={{color:'var(--text-muted)'}}>Saída</span><span>{sch.depart_time?.slice(0,5)||'—'}</span></div>
-                      <div className="tc-row"><span style={{color:'var(--text-muted)'}}>Regresso</span><span>{sch.return_time?.slice(0,5)||'—'}</span></div>
-                      {c.max_load_kg && <div style={{marginTop:8}}>
-                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text-muted)',marginBottom:3}}>
-                          <span>Carga</span><span>{sch.current_load||0} / {c.max_load_kg} kg ({pct}%)</span>
-                        </div>
-                        <div className="stock-bar">
-                          <div className={`stock-fill ${pct>80?'fill-red':pct>50?'fill-amber':'fill-green'}`} style={{width:`${pct}%`}}/>
-                        </div>
-                      </div>}
-                    </>}
-                    <div className="tc-row" style={{marginTop:8}}><span style={{color:'var(--text-muted)'}}>Contacto</span><span>{c.phone||'—'}</span></div>
+        {/* Ficha do transportador */}
+        {selected && (
+          <div style={{flex:1,minWidth:0}}>
+            <div className="card" style={{marginBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,marginBottom:14}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:2}}>{selected.vehicle_type} · {selected.plate||'Sem matrícula'}</div>
+                  <div style={{fontSize:20,fontWeight:700,marginBottom:4}}>{selected.name}</div>
+                  {/* Disponibilidade hoje */}
+                  {todaySchedule ? (
+                    <span className={`badge ${todaySchedule.status==='Disponível'?'badge-approved':'badge-critical'}`}>
+                      {todaySchedule.status} hoje · {todaySchedule.depart_time?.slice(0,5)||'—'} → {todaySchedule.return_time?.slice(0,5)||'—'}
+                    </span>
+                  ) : <span className="badge badge-pending">Sem agenda hoje</span>}
+                </div>
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
+                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>
+                  <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
+                </div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:12}}>
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>📞 Contacto</div>
+                  {selected.phone && <div style={{fontSize:12}}><a href={`tel:${selected.phone}`} style={{color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-phone" style={{marginRight:4}}/>{selected.phone}</a></div>}
+                  {selected.mobile && <div style={{fontSize:12}}><a href={`tel:${selected.mobile}`} style={{color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-device-mobile" style={{marginRight:4}}/>{selected.mobile}</a></div>}
+                  {selected.email && <div style={{fontSize:12}}><a href={`mailto:${selected.email}`} style={{color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-mail" style={{marginRight:4}}/>{selected.email}</a></div>}
+                  {!selected.phone && !selected.mobile && !selected.email && <div style={{fontSize:12,color:'var(--text-muted)'}}>Sem contacto</div>}
+                </div>
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>🚛 Veículo</div>
+                  <div style={{fontSize:13,fontWeight:500}}>{selected.vehicle_type}</div>
+                  <div style={{fontSize:12,color:'var(--text-muted)'}}>{selected.plate||'—'}</div>
+                  {selected.max_load_kg && <div style={{fontSize:12,marginTop:4}}>Carga máx: <strong>{selected.max_load_kg} kg</strong></div>}
+                </div>
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>🗺️ Rotas</div>
+                  <div style={{fontSize:12}}>{selected.routes||'Não definidas'}</div>
+                </div>
+              </div>
+
+              {/* Carga hoje */}
+              {todaySchedule && selected.max_load_kg && (
+                <div style={{marginBottom:12}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+                    <span style={{color:'var(--text-muted)'}}>Carga actual</span>
+                    <span style={{fontWeight:600}}>{todaySchedule.current_load||0} / {selected.max_load_kg} kg ({loadPct}%)</span>
                   </div>
-                )
-              })}
+                  <div style={{height:8,background:'var(--border)',borderRadius:4,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:`${loadPct}%`,background:loadPct>80?'var(--red)':loadPct>50?'var(--amber)':'var(--green)',borderRadius:4}}/>
+                  </div>
+                </div>
+              )}
+
+              {selected.notes && <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',fontSize:12,borderLeft:'3px solid var(--amber)',marginBottom:10}}>{selected.notes}</div>}
+
+              <button className="btn" onClick={()=>setShowScheduleForm(!showScheduleForm)}><i className="ti ti-calendar-plus"/>Adicionar disponibilidade</button>
+
+              {showScheduleForm && (
+                <div style={{marginTop:10,padding:'12px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
+                  <div className="form-grid" style={{gap:8}}>
+                    <div className="form-group"><label>Data *</label><input type="date" value={schedForm.date} onChange={e=>setSchedForm({...schedForm,date:e.target.value})} /></div>
+                    <div className="form-group"><label>Estado</label>
+                      <select value={schedForm.status} onChange={e=>setSchedForm({...schedForm,status:e.target.value})}>
+                        {['Disponível','Ocupado','Folga','Férias'].map(s=><option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group"><label>Hora saída</label><input type="time" value={schedForm.depart_time} onChange={e=>setSchedForm({...schedForm,depart_time:e.target.value})} /></div>
+                    <div className="form-group"><label>Hora regresso</label><input type="time" value={schedForm.return_time} onChange={e=>setSchedForm({...schedForm,return_time:e.target.value})} /></div>
+                    <div className="form-group"><label>Carga actual (kg)</label><input type="number" value={schedForm.current_load} onChange={e=>setSchedForm({...schedForm,current_load:e.target.value})} /></div>
+                    <div className="form-group"><label>Notas</label><input value={schedForm.notes} onChange={e=>setSchedForm({...schedForm,notes:e.target.value})} /></div>
+                  </div>
+                  <div style={{display:'flex',gap:8,marginTop:8,justifyContent:'flex-end'}}>
+                    <button className="btn btn-sm" onClick={()=>setShowScheduleForm(false)}>Cancelar</button>
+                    <button className="btn btn-primary btn-sm" onClick={handleScheduleSave} disabled={saving}>Guardar</button>
+                  </div>
+                </div>
+              )}
             </div>
-        }
+
+            {/* Agenda e histórico */}
+            <div className="card">
+              <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>📅 Próximas disponibilidades</div>
+              {schedules.length===0
+                ? <div className="empty" style={{padding:'10px 0'}}>Sem agenda definida.</div>
+                : <table>
+                    <thead><tr><th>Data</th><th>Saída</th><th>Regresso</th><th>Carga</th><th>Estado</th><th>Notas</th></tr></thead>
+                    <tbody>
+                      {schedules.map(s=>(
+                        <tr key={s.id} style={{background:s.date===today?'var(--blue-light)':''}}>
+                          <td style={{fontWeight:s.date===today?700:400}}>{new Date(s.date).toLocaleDateString('pt-PT')} {s.date===today&&<span style={{color:'var(--blue)',fontSize:10,marginLeft:4}}>HOJE</span>}</td>
+                          <td>{s.depart_time?.slice(0,5)||'—'}</td>
+                          <td>{s.return_time?.slice(0,5)||'—'}</td>
+                          <td>{s.current_load||0} kg</td>
+                          <td><span className={`badge ${s.status==='Disponível'?'badge-approved':s.status==='Ocupado'?'badge-critical':'badge-pending'}`}>{s.status}</span></td>
+                          <td style={{fontSize:11,color:'var(--text-muted)'}}>{s.notes||'—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+              }
+
+              <div style={{fontSize:13,fontWeight:600,margin:'16px 0 12px'}}>🚚 Histórico de transportes</div>
+              {history.length===0
+                ? <div className="empty" style={{padding:'10px 0'}}>Sem transportes registados.</div>
+                : history.map(t=>(
+                    <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'0.5px solid var(--border)',fontSize:13}}>
+                      <div>
+                        <div style={{fontWeight:500}}>{new Date(t.planned_date).toLocaleDateString('pt-PT')} {t.departure_time?`às ${t.departure_time.slice(0,5)}`:''}</div>
+                        <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
+                          {t.load_description||'—'}
+                          {t.client_orders && ` · ${t.client_orders.ref_number} → ${t.client_orders.delivery_city||''}`}
+                        </div>
+                      </div>
+                      <span className={`badge ${{
+                        'Por fazer':'badge-pending','Contactado':'badge-quotation',
+                        'Confirmado':'badge-approved','Recusado':'badge-cancelled'
+                      }[t.contact_status]||''}`}>{t.contact_status}</span>
+                    </div>
+                  ))
+              }
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
