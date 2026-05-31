@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
@@ -12,6 +12,19 @@ const EMPTY_FORM = {
   description:'', quantity:'', unit:'un.', priority:'Média', needed_by:'', min_quotes:'2',
   notes:'', affaire_id:'',
   technical_contact_name:'', technical_contact_phone:'', technical_contact_company:'', technical_contact_notes:''
+}
+
+
+function ImageFromStorage({ path }) {
+  const [url, setUrl] = React.useState(null)
+  React.useEffect(() => {
+    if (!path) return
+    if (path.startsWith('http') || path.startsWith('data:')) { setUrl(path); return }
+    supabase.storage.from('procureflow-docs').createSignedUrl(path, 3600)
+      .then(({ data }) => { if (data?.signedUrl) setUrl(data.signedUrl) })
+  }, [path])
+  if (!url) return <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>A carregar imagem...</div>
+  return <img src={url} alt="ref" style={{marginTop:8,maxWidth:'100%',maxHeight:150,borderRadius:'var(--radius)',objectFit:'cover'}} />
 }
 
 export default function Requisitions() {
@@ -123,6 +136,13 @@ export default function Requisitions() {
     const { error } = await supabase.from('requisitions').delete().eq('id', id)
     if (error) { alert('Erro ao apagar: ' + error.message); return }
     load()
+  }
+
+  const getImageUrl = async (path) => {
+    if (!path) return null
+    if (path.startsWith('http') || path.startsWith('data:')) return path
+    const { data } = await supabase.storage.from('procureflow-docs').createSignedUrl(path, 3600)
+    return data?.signedUrl || null
   }
 
   const filtered = rows.filter(r => {
