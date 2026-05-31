@@ -1,0 +1,106 @@
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './hooks/useAuth'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import Requisitions from './pages/Requisitions'
+import Quotations from './pages/Quotations'
+import Orders from './pages/Orders'
+import Payments from './pages/Payments'
+import Transport from './pages/Transport'
+import Suppliers from './pages/Suppliers'
+import Stock from './pages/Stock'
+
+const PAGE_TITLES = {
+  '/': 'Dashboard',
+  '/requisitions': 'Requisições',
+  '/quotations': 'Cotações',
+  '/orders': 'Encomendas',
+  '/payments': 'Pagamentos',
+  '/transport': 'Transportes',
+  '/suppliers': 'Fornecedores',
+  '/stock': 'Stock',
+}
+
+function Layout() {
+  const { session, signOut, loading } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  if (loading) return <div className="loading"><i className="ti ti-loader-2" /> A carregar...</div>
+  if (!session) return <Login />
+
+  const nav = (path) => navigate(path)
+  const isActive = (path) => location.pathname === path ? 'nav-item active' : 'nav-item'
+  const title = PAGE_TITLES[location.pathname] || 'ProcureFlow'
+
+  // Get initials from email
+  const email = session.user?.email || ''
+  const initials = email.slice(0,2).toUpperCase()
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="logo">
+          <div className="logo-name"><i className="ti ti-building-warehouse" style={{fontSize:16,verticalAlign:'-2px',marginRight:6}} />ProcureFlow</div>
+          <div className="logo-sub">Gestão de Procurement</div>
+        </div>
+        <nav className="nav">
+          <div className="nav-section">Principal</div>
+          <div className={isActive('/')} onClick={()=>nav('/')}><i className="ti ti-dashboard" />Dashboard</div>
+          <div className={isActive('/requisitions')} onClick={()=>nav('/requisitions')}><i className="ti ti-clipboard-list" />Requisições</div>
+          <div className={isActive('/stock')} onClick={()=>nav('/stock')}><i className="ti ti-package" />Stock</div>
+          <div className="nav-section">Cotações</div>
+          <div className={isActive('/quotations')} onClick={()=>nav('/quotations')}><i className="ti ti-file-invoice" />Cotações</div>
+          <div className="nav-section">Compras</div>
+          <div className={isActive('/orders')} onClick={()=>nav('/orders')}><i className="ti ti-shopping-cart" />Encomendas</div>
+          <div className={isActive('/payments')} onClick={()=>nav('/payments')}><i className="ti ti-credit-card" />Pagamentos</div>
+          <div className="nav-section">Logística</div>
+          <div className={isActive('/transport')} onClick={()=>nav('/transport')}><i className="ti ti-truck" />Transportes</div>
+          <div className="nav-section">Análise</div>
+          <div className={isActive('/suppliers')} onClick={()=>nav('/suppliers')}><i className="ti ti-star" />Fornecedores</div>
+        </nav>
+        <div className="user-area">
+          <div className="avatar">{initials}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{email}</div>
+          </div>
+          <button onClick={signOut} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:16}} title="Sair"><i className="ti ti-logout" /></button>
+        </div>
+      </aside>
+
+      <div className="main">
+        <header className="topbar">
+          <div className="topbar-title">{title}</div>
+          <div className="topbar-actions">
+            <button className="btn btn-primary" onClick={()=>nav('/requisitions')} style={{fontSize:13}}>
+              <i className="ti ti-plus" />Nova Requisição
+            </button>
+          </div>
+        </header>
+        <main className="content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/requisitions" element={<Requisitions />} />
+            <Route path="/quotations" element={<Quotations />} />
+            <Route path="/orders" element={<Orders />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/transport" element={<Transport />} />
+            <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/stock" element={<Stock />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Layout />
+      </BrowserRouter>
+    </AuthProvider>
+  )
+}
