@@ -14,15 +14,15 @@ import Clients from './pages/Clients'
 import Affaires from './pages/Affaires'
 
 const PAGE_TITLES = {
-  '/': 'Dashboard',
-  '/requisitions': 'Requisições Internas',
+  '/': 'Geral',
+  '/requisitions': 'Requisições',
   '/quotations': 'Cotações',
-  '/orders': 'Encomendas a Fornecedores',
+  '/orders': 'Encomendas',
   '/payments': 'Pagamentos',
-  '/transport': 'Agenda de Transportes',
+  '/transport': 'Transportes',
   '/suppliers': 'Avaliação de Fornecedores',
   '/supplier-detail': 'Fornecedores',
-  '/stock': 'Gestão de Stock',
+  '/stock': 'Stock',
   '/clients': 'Clientes',
   '/affaires': 'Negócios / Obras',
 }
@@ -50,7 +50,7 @@ function Layout() {
         </div>
         <nav className="nav">
           <div className="nav-section">Principal</div>
-          <div className={isActive('/')} onClick={()=>nav('/')}><i className="ti ti-dashboard" />Dashboard</div>
+          <div className={isActive('/')} onClick={()=>nav('/')}><i className="ti ti-dashboard" />Geral</div>
           <div className={isActive('/stock')} onClick={()=>nav('/stock')}><i className="ti ti-package" />Stock</div>
 
           <div className="nav-section">Clientes</div>

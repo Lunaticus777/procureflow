@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
@@ -27,6 +27,8 @@ export default function Requisitions() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [expanded, setExpanded] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const fileRef = useRef()
 
   const load = async () => {
     const [{ data: reqs }, { data: aff }] = await Promise.all([
@@ -48,6 +50,7 @@ export default function Requisitions() {
       technical_contact_name:r.technical_contact_name||'', technical_contact_phone:r.technical_contact_phone||'',
       technical_contact_company:r.technical_contact_company||'', technical_contact_notes:r.technical_contact_notes||''
     })
+    setImagePreview(r.image_url||null)
     setShowForm(true)
   }
 
@@ -79,6 +82,14 @@ export default function Requisitions() {
     setEditReq(null)
     setSaving(false)
     load()
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => { setImagePreview(ev.target.result); setForm(f => ({ ...f, image_url: ev.target.result })) }
+    reader.readAsDataURL(file)
   }
 
   const handleDelete = async (id) => {
@@ -143,6 +154,11 @@ export default function Requisitions() {
             <div className="form-group full">
               <label>Notas / Especificações técnicas</label>
               <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Marca preferida, normas técnicas, etc." />
+            </div>
+            <div className="form-group full">
+              <label>Foto / Imagem de referência (opcional)</label>
+              <input type="file" accept="image/*" ref={fileRef} onChange={handleImageChange} style={{fontSize:12}} />
+              {imagePreview && <img src={imagePreview} alt="preview" style={{marginTop:8,maxWidth:'100%',maxHeight:150,borderRadius:'var(--radius)',objectFit:'cover'}} />}
             </div>
           </div>
 

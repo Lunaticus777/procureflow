@@ -12,6 +12,7 @@ export default function TransportAgenda() {
   const [form, setForm] = useState({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'' })
   const [stopForm, setStopForm] = useState({ carrier_id:'', address:'', city:'', stop_type:'Entrega final', arrival_time:'', notes:'' })
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
 
   const today = new Date()
   const in3days = new Date(today); in3days.setDate(today.getDate() + 3)
@@ -170,9 +171,13 @@ export default function TransportAgenda() {
           <span className="card-title">Agenda de Transportes</span>
           <button className="btn btn-primary" onClick={()=>setShowForm(true)}><i className="ti ti-plus"/>Agendar</button>
         </div>
-        {agenda.length === 0
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar transportador, carga, encomenda..." style={{flex:1,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+          {search && <button className="btn" onClick={()=>setSearch('')}>✕</button>}
+        </div>
+        {filteredAgenda.length === 0
           ? <div className="empty">Sem transportes agendados.</div>
-          : agenda.map(a => {
+          : filteredAgenda.map(a => {
               const urgent = new Date(a.contact_date) <= in3days && a.contact_status === 'Por fazer'
               const agendaStops = stops[a.id]
               return (
