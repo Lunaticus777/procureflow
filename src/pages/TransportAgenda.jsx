@@ -8,6 +8,7 @@ export default function TransportAgenda() {
   const [agenda, setAgenda] = useState([])
   const [carriers, setCarriers] = useState([])
   const [clientOrders, setClientOrders] = useState([])
+  const [supplierOrders, setSupplierOrders] = useState([])
   const [stops, setStops] = useState({})
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -23,21 +24,22 @@ export default function TransportAgenda() {
 
   const load = async () => {
     try {
-      const [{ data: ag, error: e1 }, { data: ca }, { data: co }] = await Promise.all([
+      const [{ data: ag, error: e1 }, { data: ca }, { data: so }, { data: co }] = await Promise.all([
         supabase.from('transport_agenda')
           .select('*, carriers(name,vehicle_type,phone,plate), client_orders(ref_number,description,delivery_address,delivery_city)')
           .gte('planned_date', todayStr)
           .order('planned_date'),
         supabase.from('carriers').select('*').eq('active', true).order('name'),
+        supabase.from('orders').select('id,ref_number,total_amount,suppliers(name),requisitions(description,affaires(name))').not('status','eq','Entregue').not('status','eq','Cancelado').order('ref_number'),
         supabase.from('client_orders')
-          .select('id,ref_number,description,delivery_address,delivery_city')
-          .not('status','eq','Entregue')
+          .select('id,ref_number,description,delivery_address,delivery_city,status')
           .not('status','eq','Cancelado')
           .order('ref_number'),
       ])
       if (e1) console.error('Transport load error:', e1)
       setAgenda(ag || [])
       setCarriers(ca || [])
+      setSupplierOrders(so || [])
       setClientOrders(co || [])
     } catch (err) {
       console.error('Load error:', err)
@@ -155,10 +157,15 @@ export default function TransportAgenda() {
                 {carriers.map(c=><option key={c.id} value={c.id}>{c.name} — {c.vehicle_type} ({c.plate})</option>)}
               </select>
             </div>
-            <div className="form-group full"><label>Encomenda do cliente (opcional)</label>
+            <div className="form-group full"><label>Encomenda a transportar (opcional)</label>
               <select value={form.client_order_id} onChange={e=>setForm({...form,client_order_id:e.target.value})}>
                 <option value="">— Selecionar encomenda —</option>
-                {clientOrders.map(o=><option key={o.id} value={o.id}>{o.ref_number} — {o.description?.slice(0,50)} {o.delivery_city?`→ ${o.delivery_city}`:''}</option>)}
+                {clientOrders.length > 0 && <optgroup label="Encomendas de clientes">
+                  {clientOrders.map(o=><option key={o.id} value={`c_${o.id}`}>{o.ref_number} — {o.description?.slice(0,40)} {o.delivery_city?`→ ${o.delivery_city}`:''} [{o.status}]</option>)}
+                </optgroup>}
+                {supplierOrders.length > 0 && <optgroup label="Encomendas a fornecedores (material a chegar)">
+                  {supplierOrders.map(o=><option key={o.id} value={`s_${o.id}`}>{o.ref_number} — {o.requisitions?.description?.slice(0,40)||o.suppliers?.name} [{o.status}]</option>)}
+                </optgroup>}
               </select>
             </div>
             <div className="form-group"><label>Data de saída *</label>
