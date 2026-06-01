@@ -77,7 +77,7 @@ export default function Transport() {
 
   const filtered = carriers.filter(c => {
     const s = search.toLowerCase()
-    return !s || c.name?.toLowerCase().includes(s) || c.routes?.toLowerCase().includes(s) || c.plate?.toLowerCase().includes(s)
+    return !s || c.name?.toLowerCase().includes(s) || c.routes?.toLowerCase().includes(s) || c.plate?.toLowerCase().includes(s) || c.phone?.toLowerCase().includes(s) || c.mobile?.toLowerCase().includes(s) || c.vehicle_type?.toLowerCase().includes(s) || c.countries_served?.toLowerCase().includes(s)
   })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
@@ -142,7 +142,11 @@ export default function Transport() {
               <span className="card-title">Transportadores ({carriers.length})</span>
               <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditCarrier(null)}}><i className="ti ti-plus"/>Novo</button>
             </div>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Nome, matrícula, rota, tel..." style={{width:'100%',marginBottom:6,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+            <select value={''} onChange={e=>{if(e.target.value)setSearch(e.target.value)}} style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Filtrar por tipo...</option>
+              {['Furgão','Carrinha','Camioneta','Camião','Moto'].map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
             {filtered.length===0 ? <div className="empty">Sem transportadores.</div>
               : <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {filtered.map(c=>{

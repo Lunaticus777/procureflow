@@ -202,7 +202,7 @@ export default function Requisitions() {
             <div className="form-grid">
               <div className="form-group full"><label>Tipo de entrega</label>
                 <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
-                  {['Obra (morada da obra)','Armazém','Outro endereço'].map(t=><option key={t}>{t}</option>)}
+                  {['Obra (morada da obra)','Armazém','Outro endereço','Entrega intermédia (2+ transportes)'].map(t=><option key={t}>{t}</option>)}
                 </select>
               </div>
               {form.delivery_type!=='Obra (morada da obra)' && <>

@@ -133,7 +133,7 @@ export default function Quotations() {
 
   const filteredReqs = reqs.filter(r => {
     const s = search.toLowerCase()
-    return !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s)
+    return !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s) || r.affaires?.ref_number?.toLowerCase().includes(s) || r.employees?.emp_code?.toLowerCase().includes(s) || r.status?.toLowerCase().includes(s)
   })
 
   return (
@@ -230,7 +230,7 @@ export default function Quotations() {
                   <div className="form-group full"><label>Tipo de entrega</label>
                     <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
                       <option value="">— Igual à requisição —</option>
-                      {['Obra (morada da obra)','Armazém','Outro endereço'].map(t=><option key={t}>{t}</option>)}
+                      {['Obra (morada da obra)','Armazém','Outro endereço','Entrega intermédia (2+ transportes)'].map(t=><option key={t}>{t}</option>)}
                     </select>
                   </div>
                   {form.delivery_type && form.delivery_type!=='Obra (morada da obra)' && <>

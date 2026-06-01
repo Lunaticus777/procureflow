@@ -14,6 +14,7 @@ export default function TransportAgenda() {
   const [showForm, setShowForm] = useState(false)
   const [showStops, setShowStops] = useState(null)
   const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [form, setForm] = useState({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'', transport_cost:'', is_international:false, destination_country:'', vat_recoverable:'0' })
   const [stopForm, setStopForm] = useState({ carrier_id:'', address:'', city:'', stop_type:'Entrega final', arrival_time:'', notes:'' })
   const [saving, setSaving] = useState(false)
@@ -133,7 +134,9 @@ export default function TransportAgenda() {
 
   const filteredAgenda = agenda.filter(a => {
     const s = search.toLowerCase()
-    return !s || a.carriers?.name?.toLowerCase().includes(s) || a.load_description?.toLowerCase().includes(s) || a.client_orders?.ref_number?.toLowerCase().includes(s)
+    const matchS = !s || a.carriers?.name?.toLowerCase().includes(s) || a.load_description?.toLowerCase().includes(s) || a.client_orders?.ref_number?.toLowerCase().includes(s) || a.carriers?.plate?.toLowerCase().includes(s) || a.destination_country?.toLowerCase().includes(s)
+    const matchStatus = !filterStatus || a.contact_status === filterStatus
+    return matchS && matchStatus
   })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
@@ -217,8 +220,12 @@ export default function TransportAgenda() {
           <button className="btn btn-primary" onClick={()=>setShowForm(true)}><i className="ti ti-plus"/>Agendar</button>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:12}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar transportador, carga..." style={{flex:1,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
-          {search && <button className="btn" onClick={()=>setSearch('')}>✕</button>}
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar transportador, matrícula, carga, destino..." style={{flex:1,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+            <option value="">Todos os estados</option>
+            {['Por fazer','Contactado','Confirmado','Recusado'].map(s=><option key={s}>{s}</option>)}
+          </select>
+          {(search||filterStatus) && <button className="btn" onClick={()=>{setSearch('');setFilterStatus('')}}>✕</button>}
         </div>
         {filteredAgenda.length === 0
           ? <div className="empty">Sem transportes agendados.</div>
