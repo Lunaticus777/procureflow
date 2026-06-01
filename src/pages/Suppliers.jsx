@@ -21,7 +21,7 @@ export default function Suppliers() {
 
   const load = async () => {
     const [{ data: sc }, { data: su }, { data: or }, { data: rev }] = await Promise.all([
-      supabase.from('supplier_scores').select('*').order('avg_total', { ascending: false }),
+      supabase.from('supplier_scores').select('*, suppliers(id,name)').order('avg_total', { ascending: false }),
       supabase.from('suppliers').select('*').eq('active', true).order('name'),
       supabase.from('orders').select('id, ref_number, suppliers(name)').eq('status', 'Entregue').order('ref_number'),
       supabase.from('supplier_reviews').select('*, employees(full_name,emp_code), suppliers(name), orders(ref_number)').order('created_at', { ascending: false }),
@@ -131,8 +131,8 @@ export default function Suppliers() {
               : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12}}>
                   {scores.map(s=>(
                     <div key={s.id}
-                      onClick={()=>setSelectedSupplier(selectedSupplier===s.id?null:s.id)}
-                      style={{border:`1px solid ${selectedSupplier===s.id?'var(--blue)':'var(--border)'}`,borderRadius:'var(--radius-lg)',padding:14,cursor:'pointer',background:selectedSupplier===s.id?'var(--blue-light)':'var(--bg-card)'}}>
+                      onClick={()=>setSelectedSupplier(selectedSupplier===(s.supplier_id||s.id)?null:(s.supplier_id||s.id))}
+                      style={{border:`1px solid ${selectedSupplier===(s.supplier_id||s.id)?'var(--blue)':'var(--border)'}`,borderRadius:'var(--radius-lg)',padding:14,cursor:'pointer',background:selectedSupplier===(s.supplier_id||s.id)?'var(--blue-light)':'var(--bg-card)'}}>
                       <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{s.name}</div>
                       <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:10}}>{s.category||'—'} · {s.total_reviews} avaliação(ões)</div>
                       {[['avg_quality','Qualidade'],['avg_punctuality','Pontualidade'],['avg_price','Preço/valor'],['avg_communication','Comunicação']].map(([key,label])=>(
@@ -156,10 +156,10 @@ export default function Suppliers() {
           {selectedSupplier && (
             <div className="card" style={{marginTop:12}}>
               <div className="card-header">
-                <span className="card-title">Avaliações — {scores.find(s=>s.id===selectedSupplier)?.name}</span>
+                <span className="card-title">Avaliações — {scores.find(s=>(s.supplier_id||s.id)===selectedSupplier)?.name || suppliers.find(s=>s.id===selectedSupplier)?.name}</span>
                 <button className="btn btn-sm" onClick={()=>setSelectedSupplier(null)}><i className="ti ti-x"/></button>
               </div>
-              {supplierReviews.map(r=>(
+              {supplierReviews.length===0 ? <div className="empty">Sem avaliações para este fornecedor.</div> : supplierReviews.map(r=>(
                 <div key={r.id} style={{padding:'12px 0',borderBottom:'0.5px solid var(--border)'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
                     <div style={{flex:1}}>
@@ -189,7 +189,8 @@ export default function Suppliers() {
                     </div>
                   </div>
                 </div>
-              ))}
+              ))
+              }
             </div>
           )}
         </div>
