@@ -196,6 +196,30 @@ export default function Requisitions() {
           </div>
 
           <div style={{marginTop:16,paddingTop:16,borderTop:'0.5px solid var(--border)'}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--green)'}}>
+              <i className="ti ti-truck-delivery" style={{marginRight:6}}/>Local de entrega
+            </div>
+            <div className="form-grid">
+              <div className="form-group full"><label>Tipo de entrega</label>
+                <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
+                  {['Obra (morada da obra)','Armazém','Outro endereço'].map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              {form.delivery_type!=='Obra (morada da obra)' && <>
+                <div className="form-group full"><label>Morada de entrega</label>
+                  <input value={form.delivery_address} onChange={e=>setForm({...form,delivery_address:e.target.value})} placeholder="Morada completa" />
+                </div>
+                <div className="form-group"><label>Cidade</label>
+                  <input value={form.delivery_city} onChange={e=>setForm({...form,delivery_city:e.target.value})} />
+                </div>
+              </>}
+              <div className="form-group full"><label>Instruções de entrega</label>
+                <input value={form.delivery_notes} onChange={e=>setForm({...form,delivery_notes:e.target.value})} placeholder="Ex: Ligar antes de entregar, entrar pela traseira..." />
+              </div>
+            </div>
+          </div>
+
+          <div style={{marginTop:16,paddingTop:16,borderTop:'0.5px solid var(--border)'}}>
             <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--blue)'}}>
               <i className="ti ti-user-check" style={{marginRight:6}}/>Contacto técnico
             </div>
