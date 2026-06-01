@@ -336,7 +336,7 @@ export default function AffaireFinancials() {
                       <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'0.5px solid var(--border)',fontSize:13}}>
                         <div>
                           <div style={{fontWeight:500}}>{p.invoice_ref||'—'}</div>
-                          <div style={{fontSize:11,color:'var(--text-muted)'}}>{p.due_date?new Date(p.due_date).toLocaleDateString('pt-PT'):''}{p.paid_date?` · Pago ${new Date(p.paid_date).toLocaleDateString('pt-PT)}`:''}</div>
+                          <div style={{fontSize:11,color:'var(--text-muted)'}}>{p.due_date?new Date(p.due_date).toLocaleDateString('pt-PT'):''}{p.paid_date?` · Pago ${new Date(p.paid_date).toLocaleDateString('pt-PT')}`:''}</div>
                         </div>
                         <div style={{display:'flex',gap:6,alignItems:'center'}}>
                           <strong style={{color:p.status==='Pago'?'var(--green)':'var(--amber)'}}>{euro(p.amount)}</strong>
