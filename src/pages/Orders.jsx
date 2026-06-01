@@ -22,7 +22,7 @@ export default function Orders() {
 
   const load = async () => {
     const [{ data: ord }, { data: aff }] = await Promise.all([
-      supabase.from('orders').select('*, suppliers(name), requisitions(description, ref_number, affaires(name,ref_number,id))').order('created_at',{ascending:false}),
+      supabase.from('orders').select('*, suppliers(name), requisitions(description, ref_number, affaires(name,ref_number,id)), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
     ])
     setOrders(ord||[])
@@ -101,7 +101,7 @@ export default function Orders() {
                     <tr key={o.id} style={{cursor:'pointer',background:selected?.id===o.id?'var(--bg)':''}} onClick={()=>selectOrder(o)}>
                       <td style={{fontWeight:500}}>{o.ref_number}</td>
                       <td style={{fontSize:12,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.requisitions?.description}</td>
-                      <td style={{fontSize:11,color:'var(--blue)'}}>{o.requisitions?.affaires?.ref_number||'—'}</td>
+                      <td style={{fontSize:11}}><div style={{color:'var(--blue)'}}>{o.requisitions?.affaires?.ref_number||'—'}</div>{o.delivery_type&&o.delivery_type!=='Obra (morada da obra)'&&<div style={{fontSize:10,color:'var(--green)'}}>🚚 {o.delivery_type}</div>}</td>
                       <td style={{fontSize:12}}>{o.suppliers?.name}</td>
                       <td style={{fontSize:12}}>{o.total_amount?`€ ${parseFloat(o.total_amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}`:'—'}</td>
                       <td><span className={`badge ${STATUS_CLASS[o.status]||''}`}>{o.status}</span></td>
@@ -129,6 +129,13 @@ export default function Orders() {
             </div>
             <div style={{fontSize:13,marginBottom:12}}>
               <div style={{marginBottom:4}}><span style={{color:'var(--text-muted)'}}>Qtd: </span>{selected.quantity} · <span style={{color:'var(--text-muted)'}}>Valor: </span><strong>{selected.total_amount?`€ ${parseFloat(selected.total_amount).toLocaleString('pt-PT')}`:'-'}</strong></div>
+              {(selected.delivery_type||selected.delivery_address) && (
+                <div style={{padding:'8px 10px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:6,fontSize:12}}>
+                  <span style={{fontWeight:600,color:'var(--green)'}}>🚚 Entrega: </span>
+                  {selected.delivery_type||'Obra'}{selected.delivery_address?` — ${selected.delivery_address}`:''}{selected.delivery_city?`, ${selected.delivery_city}`:''}
+                  {selected.delivery_notes && <div style={{color:'var(--text-muted)',marginTop:2,fontStyle:'italic'}}>{selected.delivery_notes}</div>}
+                </div>
+              )}
               {selected.tracking_ref && <div><span style={{color:'var(--text-muted)'}}>Ref. transporte: </span>{selected.tracking_ref}</div>}
               {selected.expected_date && <div><span style={{color:'var(--text-muted)'}}>Entrega prevista: </span>{new Date(selected.expected_date).toLocaleDateString('pt-PT')}</div>}
             </div>

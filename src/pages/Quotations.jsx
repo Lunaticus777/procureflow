@@ -28,7 +28,7 @@ export default function Quotations() {
   const [showFollowup, setShowFollowup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false })
+  const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false, delivery_type:'', delivery_address:'', delivery_city:'' })
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
 
@@ -62,7 +62,7 @@ export default function Quotations() {
 
   const openEdit = (q) => {
     setEditQuote(q)
-    setForm({ supplier_id:q.supplier_id, supplier_ref:q.supplier_ref||'', unit_price:q.unit_price, discount_pct:q.discount_pct, delivery_days:q.delivery_days||'', valid_until:q.valid_until||'', payment_terms:q.payment_terms||'30 dias', notes:q.notes||'', vat_rate:q.vat_rate||'23', vat_exempt:q.vat_exempt||false, price_includes_vat:q.price_includes_vat||false })
+    setForm({ supplier_id:q.supplier_id, supplier_ref:q.supplier_ref||'', unit_price:q.unit_price, discount_pct:q.discount_pct, delivery_days:q.delivery_days||'', valid_until:q.valid_until||'', payment_terms:q.payment_terms||'30 dias', notes:q.notes||'', vat_rate:q.vat_rate||'23', vat_exempt:q.vat_exempt||false, price_includes_vat:q.price_includes_vat||false, delivery_type:q.delivery_type||'', delivery_address:q.delivery_address||'', delivery_city:q.delivery_city||'' })
     setShowForm(true)
   }
 
@@ -76,6 +76,7 @@ export default function Quotations() {
         discount_pct: parseFloat(form.discount_pct)||0, delivery_days: parseInt(form.delivery_days)||null,
         valid_until: form.valid_until||null, payment_terms: form.payment_terms, notes: form.notes,
         vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
+        delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null, delivery_city: form.delivery_city||null,
       }).eq('id', editQuote.id)
     } else {
       await supabase.from('quotations').insert({
@@ -84,6 +85,7 @@ export default function Quotations() {
         discount_pct: parseFloat(form.discount_pct)||0, delivery_days: parseInt(form.delivery_days)||null,
         valid_until: form.valid_until||null, payment_terms: form.payment_terms, notes: form.notes,
         vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
+        delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null, delivery_city: form.delivery_city||null,
       })
       await supabase.from('requisitions').update({ status:'Em cotação' }).eq('id', selReq.id)
     }
@@ -223,6 +225,22 @@ export default function Quotations() {
               </div>
 
               <div style={{marginTop:12,paddingTop:12,borderTop:'0.5px solid var(--border)'}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--green)',marginBottom:10}}><i className="ti ti-truck-delivery" style={{marginRight:6}}/>Local de entrega</div>
+                <div className="form-grid" style={{gap:8}}>
+                  <div className="form-group full"><label>Tipo de entrega</label>
+                    <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
+                      <option value="">— Igual à requisição —</option>
+                      {['Obra (morada da obra)','Armazém','Outro endereço'].map(t=><option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  {form.delivery_type && form.delivery_type!=='Obra (morada da obra)' && <>
+                    <div className="form-group full"><label>Morada</label><input value={form.delivery_address} onChange={e=>setForm({...form,delivery_address:e.target.value})} placeholder="Morada completa" /></div>
+                    <div className="form-group"><label>Cidade</label><input value={form.delivery_city} onChange={e=>setForm({...form,delivery_city:e.target.value})} /></div>
+                  </>}
+                </div>
+              </div>
+
+              <div style={{marginTop:12,paddingTop:12,borderTop:'0.5px solid var(--border)'}}>
                 <div style={{fontSize:12,fontWeight:600,color:'var(--blue)',marginBottom:10}}><i className="ti ti-receipt-tax" style={{marginRight:6}}/>IVA e Fiscalidade</div>
                 <div className="form-grid" style={{gap:8}}>
                   <div className="form-group" style={{flexDirection:'row',alignItems:'center',gap:8}}>
@@ -314,6 +332,11 @@ export default function Quotations() {
                           </div>
                         )}
                         {q.notes && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:6,fontStyle:'italic',padding:'4px 6px',background:'var(--bg)',borderRadius:4}}>{q.notes}</div>}
+                        {q.delivery_type && (
+                          <div style={{fontSize:11,marginTop:6,padding:'4px 6px',background:'var(--green-light)',borderRadius:4,color:'var(--green)',fontWeight:500}}>
+                            🚚 {q.delivery_type}{q.delivery_address?` — ${q.delivery_address}`:''}{q.delivery_city?`, ${q.delivery_city}`:''}
+                          </div>
+                        )}
 
                         {/* Último relançamento */}
                         {daysSince !== null && (

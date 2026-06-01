@@ -98,6 +98,10 @@ export default function Requisitions() {
       technical_contact_phone: form.technical_contact_phone||null,
       technical_contact_company: form.technical_contact_company||null,
       technical_contact_notes: form.technical_contact_notes||null,
+      delivery_type: form.delivery_type||'Obra',
+      delivery_address: form.delivery_address||null,
+      delivery_city: form.delivery_city||null,
+      delivery_notes: form.delivery_notes||null,
     }
     if (editReq) {
       const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
