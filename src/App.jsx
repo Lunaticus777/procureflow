@@ -13,6 +13,7 @@ import SupplierDetail from './pages/SupplierDetail'
 import Stock from './pages/Stock'
 import Clients from './pages/Clients'
 import Affaires from './pages/Affaires'
+import AffaireFinancials from './pages/AffaireFinancials'
 
 const PAGE_TITLES = {
   '/': 'Geral',
@@ -27,6 +28,7 @@ const PAGE_TITLES = {
   '/stock': 'Stock',
   '/clients': 'Clientes',
   '/affaires': 'Negócios / Obras',
+  '/financials': 'Viabilidade Financeira',
 }
 
 function Layout() {
@@ -58,6 +60,7 @@ function Layout() {
           <div className="nav-section">Clientes</div>
           <div className={isActive('/clients')} onClick={()=>nav('/clients')}><i className="ti ti-users" />Clientes</div>
           <div className={isActive('/affaires')} onClick={()=>nav('/affaires')}><i className="ti ti-building" />Negócios / Obras</div>
+          <div className={isActive('/financials')} onClick={()=>nav('/financials')}><i className="ti ti-chart-bar" />Viabilidade</div>
 
           <div className="nav-section">Compras</div>
           <div className={isActive('/requisitions')} onClick={()=>nav('/requisitions')}><i className="ti ti-clipboard-list" />Requisições</div>
@@ -110,6 +113,7 @@ function Layout() {
             <Route path="/stock" element={<Stock />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/affaires" element={<Affaires />} />
+            <Route path="/financials" element={<AffaireFinancials />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
