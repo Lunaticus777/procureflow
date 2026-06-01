@@ -271,7 +271,7 @@ export default function Requisitions() {
 
         {/* Detalhe */}
         {selected && (
-          <div style={{flex:1,minWidth:0}}>
+          <div style={{flex:1,minWidth:0,position:'sticky',top:16,maxHeight:'calc(100vh - 80px)',overflowY:'auto'}}>
             <div className="card" style={{position:'sticky',top:0}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
                 <div>

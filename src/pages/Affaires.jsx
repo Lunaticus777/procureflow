@@ -170,9 +170,9 @@ export default function Affaires() {
         </div>
       )}
 
-      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+      <div style={{display:'flex',gap:16,alignItems:'flex-start',height:'calc(100vh - 140px)'}}>
         {/* Lista */}
-        <div style={{width:300,flexShrink:0}}>
+        <div style={{width:300,flexShrink:0,overflowY:'auto',height:'100%'}}>
           <div className="card">
             <div className="card-header">
               <span className="card-title">Negócios ({filtered.length})</span>
@@ -209,7 +209,7 @@ export default function Affaires() {
 
         {/* Ficha detalhada */}
         {selected && (
-          <div style={{flex:1,minWidth:0}}>
+          <div style={{flex:1,minWidth:0,overflowY:'auto',height:'100%'}}>
             {/* Cabeçalho da ficha */}
             <div className="card" style={{marginBottom:12}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,marginBottom:14}}>

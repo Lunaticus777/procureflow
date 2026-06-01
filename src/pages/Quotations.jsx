@@ -135,9 +135,9 @@ export default function Quotations() {
   })
 
   return (
-    <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+    <div style={{display:'flex',gap:16,alignItems:'flex-start',height:'calc(100vh - 140px)'}}>
       {/* Lista de requisições */}
-      <div style={{width:280,flexShrink:0}}>
+      <div style={{width:280,flexShrink:0,overflowY:'auto',height:'100%'}}>
         <div className="card">
           <div className="card-header"><span className="card-title">Requisições</span></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
@@ -158,7 +158,7 @@ export default function Quotations() {
 
       {/* Painel de cotações */}
       {selReq && (
-        <div style={{flex:1,minWidth:0}}>
+        <div style={{flex:1,minWidth:0,overflowY:'auto',height:'100%'}}>
           {/* Contexto completo da requisição */}
           <div className="card" style={{marginBottom:12,borderLeft:'3px solid var(--blue)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
