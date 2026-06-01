@@ -106,7 +106,7 @@ export default function Dashboard() {
   }
 
   const deleteTask = async (id) => {
-    if (!confirm('Apagar esta tarefa?')) return
+    if (!confirm('Apagar este To Do?')) return
     await supabase.from('internal_tasks').delete().eq('id', id)
     if (myEmp) loadTasks(myEmp.id)
   }
@@ -137,8 +137,8 @@ export default function Dashboard() {
           </div>
           {t.description && <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:4,whiteSpace:'pre-wrap'}}>{t.description}</div>}
           <div style={{fontSize:11,color:'var(--text-muted)',display:'flex',gap:8,flexWrap:'wrap'}}>
-            {showFrom && t.from_emp && <span>📤 <strong>{t.from_emp.emp_code}</strong> {t.from_emp.full_name}</span>}
-            {showTo && t.to_emp && <span>📥 <strong>{t.to_emp.emp_code}</strong> {t.to_emp.full_name}</span>}
+            {showFrom && t.from_emp && <span>📤 <strong>{t.from_emp.full_name}</strong></span>}
+            {showTo && t.to_emp && <span>📥 <strong>{t.to_emp.full_name}</strong></span>}
             {t.affaires && <span style={{color:'var(--blue)'}}>🏗️ {t.affaires.ref_number} — {t.affaires.name}</span>}
             {t.due_date && <span style={{color:isOverdue(t)?'var(--red)':daysUntil(t.due_date)<=1?'var(--amber)':'var(--text-muted)',fontWeight:isOverdue(t)?700:400}}>
               📅 {isOverdue(t)?'ATRASADO! ':daysUntil(t.due_date)===0?'Hoje! ':daysUntil(t.due_date)===1?'Amanhã! ':''}{new Date(t.due_date).toLocaleDateString('pt-PT')}
@@ -234,7 +234,7 @@ export default function Dashboard() {
       <div className="card" style={{marginBottom:16}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontWeight:700,fontSize:15}}>📋 Tarefas & Pedidos internos</span>
+            <span style={{fontWeight:700,fontSize:15}}>📋 To Do & Pedidos internos</span>
             {urgentCount>0 && <span style={{background:'var(--red)',color:'white',borderRadius:10,fontSize:11,padding:'2px 8px',fontWeight:600}}>🚨 {urgentCount} urgente(s)</span>}
             {overdueCount>0 && <span style={{background:'var(--amber)',color:'white',borderRadius:10,fontSize:11,padding:'2px 8px',fontWeight:600}}>⏰ {overdueCount} atrasado(s)</span>}
           </div>
@@ -246,13 +246,13 @@ export default function Dashboard() {
         {/* Formulário */}
         {showTaskForm && (
           <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'14px',marginBottom:14,border:'0.5px solid var(--border)'}}>
-            <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>{editTask?'Editar tarefa':'Novo pedido / tarefa'}</div>
+            <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>{editTask?'Editar To Do':'Novo To Do / Pedido'}</div>
             <div className="form-grid" style={{gap:10}}>
               <div className="form-group full"><label>Para quem * </label>
                 <select value={taskForm.to_emp_id} onChange={e=>setTaskForm({...taskForm,to_emp_id:e.target.value})}>
                   <option value="">— Selecionar pessoa —</option>
                   {employees.filter(e=>e.id!==myEmp?.id).map(e=>(
-                    <option key={e.id} value={e.id}>{e.emp_code} — {e.full_name}</option>
+                    <option key={e.id} value={e.id}>{e.full_name}</option>
                   ))}
                 </select>
               </div>
@@ -333,11 +333,11 @@ export default function Dashboard() {
                     <div key={emp.id} style={{marginBottom:14}}>
                       <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',marginBottom:8}}>
                         <div style={{width:32,height:32,borderRadius:'50%',background:'var(--blue-light)',color:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0}}>
-                          {emp.emp_code?.slice(-2)||emp.full_name?.slice(0,2)}
+                          {emp.full_name?.slice(0,2).toUpperCase()}
                         </div>
                         <div style={{flex:1}}>
                           <div style={{fontWeight:600,fontSize:13}}>{emp.full_name}</div>
-                          <div style={{fontSize:11,color:'var(--text-muted)'}}>{emp.emp_code} · {empTasks.length} tarefa(s)</div>
+                          <div style={{fontSize:11,color:'var(--text-muted)'}}>{emp.emp_code} · {empTasks.length} to do(s)</div>
                         </div>
                         {urgCount>0 && <span style={{background:'var(--red)',color:'white',borderRadius:10,fontSize:11,padding:'2px 8px',fontWeight:600}}>🚨 {urgCount}</span>}
                       </div>
