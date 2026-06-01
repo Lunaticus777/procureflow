@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useRole } from '../hooks/useRole'
 
 const STARS = (n) => '★'.repeat(Math.round(n||0)) + '☆'.repeat(5-Math.round(n||0))
 
 export default function SupplierDetail() {
   const { session } = useAuth()
+  const { isAdmin } = useRole()
   const [suppliers, setSuppliers] = useState([])
   const [selected, setSelected] = useState(null)
   const [contacts, setContacts] = useState([])
@@ -183,7 +185,7 @@ export default function SupplierDetail() {
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
                   <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
-                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>
+                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>}
                   <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
                 </div>
               </div>

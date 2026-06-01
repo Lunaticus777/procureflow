@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useRole } from '../hooks/useRole'
 
 const euro = (v,d=0) => `€ ${parseFloat(v||0).toLocaleString('pt-PT',{minimumFractionDigits:d})}`
 
@@ -13,6 +14,7 @@ const MOVE_COLOR = { 'Entrada':'var(--green)','Saída':'var(--amber)','Venda':'v
 
 export default function Stock() {
   const { session } = useAuth()
+  const { isAdmin } = useRole()
   const [items, setItems] = useState([])
   const [valuation, setValuation] = useState([])
   const [alerts, setAlerts] = useState([])
@@ -614,7 +616,7 @@ export default function Stock() {
                             <div style={{display:'flex',gap:4}}>
                               <button className="btn btn-sm" title="Editar" onClick={()=>{setEditItem(i);setItemForm({reference:i.reference,description:i.description,unit:i.unit,stock_current:i.stock_current,stock_min:i.stock_min,stock_ideal:i.stock_ideal,warehouse:i.warehouse,category_id:i.category_id||''});setShowItemForm(true)}}><i className="ti ti-edit"/></button>
                               <button className="btn btn-sm" title="Movimento" onClick={()=>{setMoveForm({...moveForm,item_id:i.id});setShowMoveForm(true)}}><i className="ti ti-arrows-transfer-up"/></button>
-                              <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleItemDelete(i.id)}><i className="ti ti-trash"/></button>
+                              {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleItemDelete(i.id)}><i className="ti ti-trash"/></button>}
                             </div>
                           </td>
                         </tr>

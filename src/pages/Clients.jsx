@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useRole } from '../hooks/useRole'
 
 const COUNTRIES = ['Portugal','Suíça','França','Espanha','Alemanha','Reino Unido','Luxemburgo','Bélgica','Itália','Outro']
 const STATUS_CLASS = { 'Recebido':'badge-pending','Em preparação':'badge-quotation','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled' }
@@ -11,6 +12,7 @@ export default function Clients() {
   const [orders, setOrders] = useState([])
   const [affaires, setAffaires] = useState([])
   const [payments, setPayments] = useState([])
+  const { isAdmin } = useRole()
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('info')
   const [search, setSearch] = useState('')
@@ -151,7 +153,7 @@ export default function Clients() {
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
                   <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
-                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>
+                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>}
                   <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
                 </div>
               </div>

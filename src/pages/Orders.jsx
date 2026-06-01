@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useRole } from '../hooks/useRole'
 
 const STATUS_CLASS = { 'Confirmado':'badge-ordered','Em trânsito':'badge-transit','Entregue':'badge-delivered','Cancelado':'badge-cancelled' }
 
 export default function Orders() {
   const { session } = useAuth()
+  const { isAdmin } = useRole()
   const [orders, setOrders] = useState([])
   const [affaires, setAffaires] = useState([])
   const [loading, setLoading] = useState(true)
@@ -104,7 +106,7 @@ export default function Orders() {
                       <td style={{fontSize:12}}>{o.total_amount?`€ ${parseFloat(o.total_amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}`:'—'}</td>
                       <td><span className={`badge ${STATUS_CLASS[o.status]||''}`}>{o.status}</span></td>
                       <td onClick={e=>e.stopPropagation()}>
-                        <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(o.id)} title="Apagar encomenda"><i className="ti ti-trash"/></button>
+                        {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(o.id)} title="Apagar encomenda"><i className="ti ti-trash"/></button>}
                       </td>
                     </tr>
                   ))}

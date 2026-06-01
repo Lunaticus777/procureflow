@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useRole } from '../hooks/useRole'
 
 const STATUS_CLASS = { 'Aberta':'badge-quotation','Em curso':'badge-ordered','Concluída':'badge-delivered','Cancelada':'badge-cancelled' }
 const STATUS_COLOR = { 'Aberta':'var(--blue)','Em curso':'var(--amber)','Concluída':'var(--green)','Cancelada':'var(--red)' }
@@ -10,6 +11,7 @@ const REQ_STATUS = { 'Pendente':'badge-pending','Em cotação':'badge-quotation'
 
 export default function Affaires() {
   const { session } = useAuth()
+  const { isAdmin } = useRole()
   const [affaires, setAffaires] = useState([])
   const [clients, setClients] = useState([])
   const [orders, setOrders] = useState([])
@@ -220,7 +222,7 @@ export default function Affaires() {
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
                   <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
-                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>
+                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>}
                   <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
                 </div>
               </div>
@@ -402,7 +404,7 @@ export default function Affaires() {
                           </div>
                           <div style={{display:'flex',gap:6}}>
                             <button className="btn btn-sm btn-primary" onClick={()=>handleDownload(doc.name)}><i className="ti ti-download"/>Ver</button>
-                            <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeleteDoc(doc.name)}><i className="ti ti-trash"/></button>
+                            {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeleteDoc(doc.name)}><i className="ti ti-trash"/></button>}
                           </div>
                         </div>
                       ))

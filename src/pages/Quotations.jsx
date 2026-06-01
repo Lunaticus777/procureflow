@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useRole } from '../hooks/useRole'
 
 function ImageFromStorage({ path }) {
   const [url, setUrl] = useState(null)
@@ -16,6 +17,7 @@ function ImageFromStorage({ path }) {
 
 export default function Quotations() {
   const { session } = useAuth()
+  const { isAdmin } = useRole()
   const [reqs, setReqs] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [quotes, setQuotes] = useState([])
@@ -326,7 +328,7 @@ export default function Quotations() {
                           {!q.selected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
                           <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
                           <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
-                          <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>
+                          {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>}
                         </div>
 
                         {showFollowup===q.id && (

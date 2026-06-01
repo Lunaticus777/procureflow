@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useRole } from '../hooks/useRole'
 
 export default function Transport() {
   const [carriers, setCarriers] = useState([])
   const [selected, setSelected] = useState(null)
   const [schedules, setSchedules] = useState([])
   const [history, setHistory] = useState([])
+  const { isAdmin } = useRole()
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editCarrier, setEditCarrier] = useState(null)
@@ -177,7 +179,7 @@ export default function Transport() {
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
                   <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
-                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>
+                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>}
                   <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
                 </div>
               </div>

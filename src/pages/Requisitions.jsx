@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useRole } from '../hooks/useRole'
 
 const STATUS_CLASS = {
   'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved',
@@ -32,6 +33,7 @@ function ImageFromStorage({ path }) {
 
 export default function Requisitions() {
   const { session } = useAuth()
+  const { isAdmin } = useRole()
   const [rows, setRows] = useState([])
   const [affaires, setAffaires] = useState([])
   const [loading, setLoading] = useState(true)
@@ -258,7 +260,7 @@ export default function Requisitions() {
                       </div>
                       <div style={{display:'flex',gap:4,marginTop:8}} onClick={e=>e.stopPropagation()}>
                         <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/>Editar</button>
-                        <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/>Apagar</button>
+                        {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/>Apagar</button>}
                       </div>
                     </div>
                   ))}

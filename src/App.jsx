@@ -1,3 +1,4 @@
+import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
@@ -35,15 +36,29 @@ function Layout() {
   const { session, signOut, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [userRole, setUserRole] = React.useState(null)
+  const [empCode, setEmpCode] = React.useState('')
+
+  React.useEffect(() => {
+    if (session?.user?.email) {
+      import('./lib/supabase').then(({ supabase }) => {
+        supabase.from('employees').select('role, emp_code, full_name').eq('email', session.user.email).single()
+          .then(({ data }) => {
+            if (data) { setUserRole(data.role); setEmpCode(data.emp_code||'') }
+          })
+      })
+    }
+  }, [session])
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2" /> A carregar...</div>
   if (!session) return <Login />
 
+  const isAdmin = userRole === 'admin'
   const nav = (path) => navigate(path)
   const isActive = (path) => location.pathname === path ? 'nav-item active' : 'nav-item'
   const title = PAGE_TITLES[location.pathname] || 'ProcureFlow'
   const email = session.user?.email || ''
-  const initials = email.slice(0, 2).toUpperCase()
+  const initials = empCode ? empCode.slice(-2) : email.slice(0, 2).toUpperCase()
 
   return (
     <div className="app">
@@ -60,7 +75,7 @@ function Layout() {
           <div className="nav-section">Clientes</div>
           <div className={isActive('/clients')} onClick={()=>nav('/clients')}><i className="ti ti-users" />Clientes</div>
           <div className={isActive('/affaires')} onClick={()=>nav('/affaires')}><i className="ti ti-building" />Negócios / Obras</div>
-          <div className={isActive('/financials')} onClick={()=>nav('/financials')}><i className="ti ti-chart-bar" />Viabilidade</div>
+          {isAdmin && <div className={isActive('/financials')} onClick={()=>nav('/financials')}><i className="ti ti-chart-bar" />Viabilidade</div>}
 
           <div className="nav-section">Compras</div>
           <div className={isActive('/requisitions')} onClick={()=>nav('/requisitions')}><i className="ti ti-clipboard-list" />Requisições</div>
@@ -82,6 +97,7 @@ function Layout() {
           <div className="avatar">{initials}</div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{email}</div>
+            {isAdmin && <div style={{fontSize:10,background:'var(--blue)',color:'white',borderRadius:10,padding:'1px 6px',marginTop:2}}>Admin</div>}
           </div>
           <button onClick={signOut} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:16}} title="Sair"><i className="ti ti-logout" /></button>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useRole } from '../hooks/useRole'
 
 export default function ClientPayments() {
   const [clientPayments, setClientPayments] = useState([])
@@ -8,6 +9,7 @@ export default function ClientPayments() {
   const [clients, setClients] = useState([])
   const [affaires, setAffaires] = useState([])
   const [orders, setOrders] = useState([])
+  const { isAdmin } = useRole()
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('clients')
   const [showForm, setShowForm] = useState(false)
@@ -190,7 +192,7 @@ export default function ClientPayments() {
                   <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
                   <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
                   {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'client')}>Recebido ✓</button>}
-                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'client')} title="Apagar"><i className="ti ti-trash"/></button>
+                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'client')} title="Apagar"><i className="ti ti-trash"/></button>}
                 </div>
               </div>
             ))
@@ -216,7 +218,7 @@ export default function ClientPayments() {
                   <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
                   <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
                   {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>}
-                  <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>
+                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
                 </div>
               </div>
             ))
@@ -247,7 +249,7 @@ export default function ClientPayments() {
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})} ✓</span>
-                    <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'partial')} title="Apagar"><i className="ti ti-trash"/></button>
+                    {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'partial')} title="Apagar"><i className="ti ti-trash"/></button>}
                   </div>
                 </div>
               ))}
