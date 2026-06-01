@@ -2,18 +2,27 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRole } from '../hooks/useRole'
 
+const PT_DISTRICTS = ['Aveiro','Beja','Braga','Bragança','Castelo Branco','Coimbra','Évora','Faro','Guarda','Leiria','Lisboa','Portalegre','Porto','Santarém','Setúbal','Viana do Castelo','Vila Real','Viseu','Açores','Madeira']
+const EU_COUNTRIES = ['Portugal','Espanha','França','Alemanha','Itália','Bélgica','Países Baixos','Luxemburgo','Suíça','Reino Unido','Irlanda','Áustria','Polónia','Outro']
+
 export default function Transport() {
+  const { isAdmin } = useRole()
   const [carriers, setCarriers] = useState([])
   const [selected, setSelected] = useState(null)
   const [schedules, setSchedules] = useState([])
   const [history, setHistory] = useState([])
-  const { isAdmin } = useRole()
+  const [zones, setZones] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editCarrier, setEditCarrier] = useState(null)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
+  const [showZoneForm, setShowZoneForm] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'', price_type:'Fixo', base_price:'', price_per_km:'', price_per_kg:'', currency:'EUR', international:false, countries_served:'' })
+  const [filterType, setFilterType] = useState('')
+
+  const EMPTY_FORM = { name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', notes:'', price_type:'Fixo', base_price:'', price_per_km:'', price_per_kg:'', currency:'EUR', international:false, countries_served:'', address:'', city:'', postal_code:'', country:'Portugal' }
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [zoneForm, setZoneForm] = useState({ zone_type:'Nacional', country:'', region:'', city:'', notes:'' })
   const [schedForm, setSchedForm] = useState({ date:'', depart_time:'', return_time:'', current_load:'0', status:'Disponível', notes:'' })
   const [saving, setSaving] = useState(false)
 
@@ -26,12 +35,14 @@ export default function Transport() {
   }
 
   const loadDetail = async (c) => {
-    const [{ data: sch }, { data: agenda }] = await Promise.all([
+    const [{ data: sch }, { data: agenda }, { data: z }] = await Promise.all([
       supabase.from('carrier_schedules').select('*').eq('carrier_id', c.id).gte('date', today).order('date').limit(10),
       supabase.from('transport_agenda').select('*, client_orders(ref_number,delivery_city)').eq('carrier_id', c.id).order('planned_date',{ascending:false}).limit(10),
+      supabase.from('carrier_zones').select('*').eq('carrier_id', c.id).order('zone_type').order('country').order('region'),
     ])
     setSchedules(sch || [])
     setHistory(agenda || [])
+    setZones(z || [])
   }
 
   useEffect(() => { load() }, [])
@@ -40,20 +51,22 @@ export default function Transport() {
 
   const openEdit = (c) => {
     setEditCarrier(c)
-    setForm({ name:c.name, vehicle_type:c.vehicle_type||'Furgão', plate:c.plate||'', phone:c.phone||'', mobile:c.mobile||'', email:c.email||'', max_load_kg:c.max_load_kg||'', routes:c.routes||'', notes:c.notes||'', price_type:c.price_type||'Fixo', base_price:c.base_price||'', price_per_km:c.price_per_km||'', price_per_kg:c.price_per_kg||'', currency:c.currency||'EUR', international:c.international||false, countries_served:c.countries_served||'' })
+    setForm({ name:c.name, vehicle_type:c.vehicle_type||'Furgão', plate:c.plate||'', phone:c.phone||'', mobile:c.mobile||'', email:c.email||'', max_load_kg:c.max_load_kg||'', notes:c.notes||'', price_type:c.price_type||'Fixo', base_price:c.base_price||'', price_per_km:c.price_per_km||'', price_per_kg:c.price_per_kg||'', currency:c.currency||'EUR', international:c.international||false, countries_served:c.countries_served||'', address:c.address||'', city:c.city||'', postal_code:c.postal_code||'', country:c.country||'Portugal' })
     setShowForm(true)
   }
 
   const handleSave = async () => {
     if (!form.name) return
     setSaving(true)
+    const payload = { ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null, base_price: form.base_price ? parseFloat(form.base_price) : null, price_per_km: form.price_per_km ? parseFloat(form.price_per_km) : null, price_per_kg: form.price_per_kg ? parseFloat(form.price_per_kg) : null }
     if (editCarrier) {
-      await supabase.from('carriers').update({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null, base_price: form.base_price ? parseFloat(form.base_price) : null, price_per_km: form.price_per_km ? parseFloat(form.price_per_km) : null, price_per_kg: form.price_per_kg ? parseFloat(form.price_per_kg) : null }).eq('id', editCarrier.id)
-      setSelected({...editCarrier,...form})
+      await supabase.from('carriers').update(payload).eq('id', editCarrier.id)
+      setSelected({...editCarrier,...payload})
     } else {
-      await supabase.from('carriers').insert({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null, base_price: form.base_price ? parseFloat(form.base_price) : null, price_per_km: form.price_per_km ? parseFloat(form.price_per_km) : null, price_per_kg: form.price_per_kg ? parseFloat(form.price_per_kg) : null })
+      const { error } = await supabase.from('carriers').insert(payload)
+      if (error) { alert('Erro: ' + error.message); setSaving(false); return }
     }
-    setForm({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'' })
+    setForm(EMPTY_FORM)
     setShowForm(false); setEditCarrier(null); setSaving(false); load()
   }
 
@@ -61,6 +74,19 @@ export default function Transport() {
     if (!confirm('Arquivar este transportador?')) return
     await supabase.from('carriers').update({ active: false }).eq('id', id)
     setSelected(null); load()
+  }
+
+  const handleZoneSave = async () => {
+    if (!zoneForm.zone_type) return
+    await supabase.from('carrier_zones').insert({ ...zoneForm, carrier_id: selected.id, country: zoneForm.zone_type==='Nacional'?'Portugal':zoneForm.country })
+    setZoneForm({ zone_type:'Nacional', country:'', region:'', city:'', notes:'' })
+    setShowZoneForm(false)
+    loadDetail(selected)
+  }
+
+  const handleZoneDelete = async (id) => {
+    await supabase.from('carrier_zones').delete().eq('id', id)
+    loadDetail(selected)
   }
 
   const handleScheduleSave = async () => {
@@ -75,9 +101,15 @@ export default function Transport() {
   const todaySchedule = schedules.find(s => s.date === today)
   const loadPct = todaySchedule && selected?.max_load_kg ? Math.min(100, Math.round((parseFloat(todaySchedule.current_load||0)/parseFloat(selected.max_load_kg))*100)) : 0
 
+  // Group zones
+  const nationalZones = zones.filter(z => z.zone_type === 'Nacional')
+  const intlZones = zones.filter(z => z.zone_type === 'Internacional')
+
   const filtered = carriers.filter(c => {
     const s = search.toLowerCase()
-    return !s || c.name?.toLowerCase().includes(s) || c.routes?.toLowerCase().includes(s) || c.plate?.toLowerCase().includes(s) || c.phone?.toLowerCase().includes(s) || c.mobile?.toLowerCase().includes(s) || c.vehicle_type?.toLowerCase().includes(s) || c.countries_served?.toLowerCase().includes(s)
+    const matchS = !s || c.name?.toLowerCase().includes(s) || c.routes?.toLowerCase().includes(s) || c.plate?.toLowerCase().includes(s) || c.phone?.toLowerCase().includes(s) || c.mobile?.toLowerCase().includes(s) || c.vehicle_type?.toLowerCase().includes(s) || c.city?.toLowerCase().includes(s)
+    const matchT = !filterType || c.vehicle_type === filterType
+    return matchS && matchT
   })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
@@ -85,51 +117,73 @@ export default function Transport() {
   return (
     <div>
       {showForm && (
-        <div className="card" style={{maxWidth:620,marginBottom:16}}>
-          <div className="card-header"><span className="card-title">{editCarrier?'Editar Transportador':'Novo Transportador'}</span></div>
-          <div className="form-grid">
-            <div className="form-group full"><label>Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nome do motorista/empresa" /></div>
+        <div className="card" style={{maxWidth:680,marginBottom:16}}>
+          <div className="card-header">
+            <span className="card-title">{editCarrier?'Editar Transportador':'Novo Transportador'}</span>
+            <button className="btn btn-sm" onClick={()=>{setShowForm(false);setEditCarrier(null)}}><i className="ti ti-x"/></button>
+          </div>
+
+          {/* Informação básica */}
+          <div style={{fontSize:12,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Identificação</div>
+          <div className="form-grid" style={{marginBottom:14}}>
+            <div className="form-group full"><label>Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nome do motorista ou empresa" /></div>
             <div className="form-group"><label>Tipo de veículo</label>
               <select value={form.vehicle_type} onChange={e=>setForm({...form,vehicle_type:e.target.value})}>
                 {['Furgão','Carrinha','Camioneta','Camião','Moto'].map(t=><option key={t}>{t}</option>)}
               </select>
             </div>
             <div className="form-group"><label>Matrícula</label><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value})} placeholder="AB-123-CD" /></div>
-            <div className="form-group"><label>Telefone</label><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></div>
-            <div className="form-group"><label>Telemóvel</label><input value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} /></div>
-            <div className="form-group"><label>Email</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} /></div>
             <div className="form-group"><label>Carga máx. (kg)</label><input type="number" value={form.max_load_kg} onChange={e=>setForm({...form,max_load_kg:e.target.value})} /></div>
-            <div className="form-group full"><label>Rotas habituais</label><input value={form.routes} onChange={e=>setForm({...form,routes:e.target.value})} placeholder="Ex: Lisboa / Setúbal / Almada" /></div>
-            <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
           </div>
 
-          <div style={{marginTop:14,paddingTop:14,borderTop:'0.5px solid var(--border)'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--blue)'}}><i className="ti ti-coin-euro" style={{marginRight:6}}/>Preços e condições</div>
-            <div className="form-grid">
-              <div className="form-group"><label>Tipo de preço</label>
-                <select value={form.price_type} onChange={e=>setForm({...form,price_type:e.target.value})}>
-                  {['Fixo','Por km','Por kg','Negociável','Incluído na encomenda'].map(t=><option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="form-group"><label>Moeda</label>
-                <select value={form.currency} onChange={e=>setForm({...form,currency:e.target.value})}>
-                  {['EUR','CHF','GBP','USD'].map(c=><option key={c}>{c}</option>)}
-                </select>
-              </div>
-              {(form.price_type==='Fixo'||form.price_type==='Negociável') && <div className="form-group"><label>Preço base ({form.currency})</label><input type="number" step="0.01" value={form.base_price} onChange={e=>setForm({...form,base_price:e.target.value})} placeholder="0.00" /></div>}
-              {form.price_type==='Por km' && <div className="form-group"><label>Preço por km ({form.currency})</label><input type="number" step="0.01" value={form.price_per_km} onChange={e=>setForm({...form,price_per_km:e.target.value})} /></div>}
-              {form.price_type==='Por kg' && <div className="form-group"><label>Preço por kg ({form.currency})</label><input type="number" step="0.01" value={form.price_per_kg} onChange={e=>setForm({...form,price_per_kg:e.target.value})} /></div>}
-              <div className="form-group full" style={{flexDirection:'row',alignItems:'center',gap:10}}>
-                <input type="checkbox" checked={form.international} onChange={e=>setForm({...form,international:e.target.checked})} id="intl_check" />
-                <label htmlFor="intl_check" style={{margin:0,cursor:'pointer'}}>Faz transportes internacionais (exportação)</label>
-              </div>
-              {form.international && <div className="form-group full"><label>Países servidos</label><input value={form.countries_served} onChange={e=>setForm({...form,countries_served:e.target.value})} placeholder="Ex: Portugal, Suíça, França, Espanha" /></div>}
+          {/* Contactos */}
+          <div style={{fontSize:12,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Contactos</div>
+          <div className="form-grid" style={{marginBottom:14}}>
+            <div className="form-group"><label>Telefone</label><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></div>
+            <div className="form-group"><label>Telemóvel</label><input value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value})} /></div>
+            <div className="form-group full"><label>Email</label><input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} /></div>
+          </div>
+
+          {/* Morada */}
+          <div style={{fontSize:12,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Morada</div>
+          <div className="form-grid" style={{marginBottom:14}}>
+            <div className="form-group full"><label>Morada</label><input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Rua, nº, andar..." /></div>
+            <div className="form-group"><label>Código Postal</label><input value={form.postal_code} onChange={e=>setForm({...form,postal_code:e.target.value})} placeholder="0000-000" /></div>
+            <div className="form-group"><label>Cidade</label><input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} /></div>
+            <div className="form-group"><label>País</label>
+              <select value={form.country} onChange={e=>setForm({...form,country:e.target.value})}>
+                {EU_COUNTRIES.map(c=><option key={c}>{c}</option>)}
+              </select>
             </div>
           </div>
 
+          {/* Preços */}
+          <div style={{fontSize:12,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Preços</div>
+          <div className="form-grid" style={{marginBottom:14}}>
+            <div className="form-group"><label>Tipo de preço</label>
+              <select value={form.price_type} onChange={e=>setForm({...form,price_type:e.target.value})}>
+                {['Fixo','Por km','Por kg','Negociável','Incluído na encomenda'].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label>Moeda</label>
+              <select value={form.currency} onChange={e=>setForm({...form,currency:e.target.value})}>
+                {['EUR','CHF','GBP','USD'].map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+            {(form.price_type==='Fixo'||form.price_type==='Negociável') && <div className="form-group"><label>Preço base ({form.currency})</label><input type="number" step="0.01" value={form.base_price} onChange={e=>setForm({...form,base_price:e.target.value})} /></div>}
+            {form.price_type==='Por km' && <div className="form-group"><label>€ por km</label><input type="number" step="0.01" value={form.price_per_km} onChange={e=>setForm({...form,price_per_km:e.target.value})} /></div>}
+            {form.price_type==='Por kg' && <div className="form-group"><label>€ por kg</label><input type="number" step="0.01" value={form.price_per_kg} onChange={e=>setForm({...form,price_per_kg:e.target.value})} /></div>}
+            <div className="form-group full" style={{flexDirection:'row',alignItems:'center',gap:8}}>
+              <input type="checkbox" checked={form.international} onChange={e=>setForm({...form,international:e.target.checked})} id="intl_check" />
+              <label htmlFor="intl_check" style={{margin:0,cursor:'pointer',fontWeight:500}}>✈️ Faz transportes internacionais</label>
+            </div>
+          </div>
+
+          <div className="form-group full" style={{marginBottom:14}}><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
+
           <div className="form-actions">
             <button className="btn" onClick={()=>{setShowForm(false);setEditCarrier(null)}}>Cancelar</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editCarrier?'Guardar':'Guardar Transportador'}</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editCarrier?'Guardar':'Criar transportador'}</button>
           </div>
         </div>
       )}
@@ -140,46 +194,46 @@ export default function Transport() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Transportadores ({carriers.length})</span>
-              <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditCarrier(null)}}><i className="ti ti-plus"/>Novo</button>
+              <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditCarrier(null);setForm(EMPTY_FORM)}}><i className="ti ti-plus"/>Novo</button>
             </div>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Nome, matrícula, rota, tel..." style={{width:'100%',marginBottom:6,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
-            <select value={''} onChange={e=>{if(e.target.value)setSearch(e.target.value)}} style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
-              <option value="">Filtrar por tipo...</option>
-              {['Furgão','Carrinha','Camioneta','Camião','Moto'].map(t=><option key={t} value={t}>{t}</option>)}
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Nome, matrícula, cidade..." style={{width:'100%',marginBottom:6,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+            <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Todos os tipos</option>
+              {['Furgão','Carrinha','Camioneta','Camião','Moto'].map(t=><option key={t}>{t}</option>)}
             </select>
             {filtered.length===0 ? <div className="empty">Sem transportadores.</div>
               : <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  {filtered.map(c=>{
-                    const sch = schedules.find ? null : null // loaded on select
-                    return (
-                      <div key={c.id} onClick={()=>selectCarrier(c)}
-                        style={{border:`1px solid ${selected?.id===c.id?'var(--blue)':'var(--border)'}`,borderLeft:`4px solid ${selected?.id===c.id?'var(--blue)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',background:selected?.id===c.id?'var(--blue-light)':'var(--bg-card)'}}>
-                        <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
-                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{c.vehicle_type} · {c.plate||'—'}</div>
-                        <div style={{fontSize:11,color:'var(--text-muted)'}}>{c.routes||'—'}</div>
-                        {c.phone && <div style={{fontSize:11,color:'var(--blue)',marginTop:2}}>{c.phone}</div>}
-                      </div>
-                    )
-                  })}
+                  {filtered.map(c=>(
+                    <div key={c.id} onClick={()=>selectCarrier(c)}
+                      style={{border:`1px solid ${selected?.id===c.id?'var(--blue)':'var(--border)'}`,borderLeft:`4px solid ${selected?.id===c.id?'var(--blue)':c.international?'var(--green)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',background:selected?.id===c.id?'var(--blue-light)':'var(--bg-card)'}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
+                      <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{c.vehicle_type} · {c.plate||'—'}</div>
+                      {c.city && <div style={{fontSize:11,color:'var(--text-muted)'}}><i className="ti ti-map-pin" style={{marginRight:3}}/>{c.city}</div>}
+                      {c.phone && <div style={{fontSize:11,color:'var(--blue)',marginTop:2}}>{c.phone}</div>}
+                      {c.international && <div style={{fontSize:10,color:'var(--green)',marginTop:2,fontWeight:500}}>✈️ Internacional</div>}
+                    </div>
+                  ))}
                 </div>
             }
           </div>
         </div>
 
-        {/* Ficha do transportador */}
+        {/* Ficha */}
         {selected && (
           <div style={{flex:1,minWidth:0,overflowY:'auto',height:'100%'}}>
+            {/* Header */}
             <div className="card" style={{marginBottom:12}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,marginBottom:14}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:2}}>{selected.vehicle_type} · {selected.plate||'Sem matrícula'}</div>
-                  <div style={{fontSize:20,fontWeight:700,marginBottom:4}}>{selected.name}</div>
-                  {/* Disponibilidade hoje */}
-                  {todaySchedule ? (
-                    <span className={`badge ${todaySchedule.status==='Disponível'?'badge-approved':'badge-critical'}`}>
-                      {todaySchedule.status} hoje · {todaySchedule.depart_time?.slice(0,5)||'—'} → {todaySchedule.return_time?.slice(0,5)||'—'}
-                    </span>
-                  ) : <span className="badge badge-pending">Sem agenda hoje</span>}
+                  <div style={{fontSize:20,fontWeight:700,marginBottom:6}}>{selected.name}</div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {todaySchedule
+                      ? <span className={`badge ${todaySchedule.status==='Disponível'?'badge-approved':'badge-critical'}`}>{todaySchedule.status} hoje</span>
+                      : <span className="badge badge-pending">Sem agenda hoje</span>
+                    }
+                    {selected.international && <span style={{fontSize:11,background:'var(--green-light)',color:'var(--green)',padding:'2px 8px',borderRadius:10,fontWeight:500}}>✈️ Internacional</span>}
+                  </div>
                 </div>
                 <div style={{display:'flex',gap:6,flexShrink:0}}>
                   <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
@@ -188,6 +242,7 @@ export default function Transport() {
                 </div>
               </div>
 
+              {/* Info grid */}
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:12}}>
                 <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
                   <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>📞 Contacto</div>
@@ -197,23 +252,26 @@ export default function Transport() {
                   {!selected.phone && !selected.mobile && !selected.email && <div style={{fontSize:12,color:'var(--text-muted)'}}>Sem contacto</div>}
                 </div>
                 <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>📍 Morada</div>
+                  {selected.address && <div style={{fontSize:12}}>{selected.address}</div>}
+                  {(selected.postal_code||selected.city) && <div style={{fontSize:12,fontWeight:500}}>{selected.postal_code} {selected.city}</div>}
+                  {selected.country && <div style={{fontSize:12,color:'var(--text-muted)'}}>{selected.country}</div>}
+                  {!selected.address && !selected.city && <div style={{fontSize:12,color:'var(--text-muted)'}}>Sem morada</div>}
+                </div>
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
                   <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>🚛 Veículo</div>
                   <div style={{fontSize:13,fontWeight:500}}>{selected.vehicle_type}</div>
                   <div style={{fontSize:12,color:'var(--text-muted)'}}>{selected.plate||'—'}</div>
                   {selected.max_load_kg && <div style={{fontSize:12,marginTop:4}}>Carga máx: <strong>{selected.max_load_kg} kg</strong></div>}
-                </div>
-                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
-                  <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>🗺️ Rotas</div>
-                  <div style={{fontSize:12}}>{selected.routes||'Não definidas'}</div>
-                  {selected.international && <div style={{fontSize:11,marginTop:4,color:'var(--green)',fontWeight:500}}>✈️ Internacional: {selected.countries_served||'vários países'}</div>}
+                  {selected.base_price && <div style={{fontSize:12,marginTop:2,color:'var(--green)',fontWeight:500}}>{selected.currency} {parseFloat(selected.base_price).toLocaleString('pt-PT',{minimumFractionDigits:2})} ({selected.price_type})</div>}
                 </div>
               </div>
 
-              {/* Carga hoje */}
+              {/* Barra carga */}
               {todaySchedule && selected.max_load_kg && (
-                <div style={{marginBottom:12}}>
+                <div style={{marginBottom:10}}>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
-                    <span style={{color:'var(--text-muted)'}}>Carga actual</span>
+                    <span style={{color:'var(--text-muted)'}}>Carga actual hoje</span>
                     <span style={{fontWeight:600}}>{todaySchedule.current_load||0} / {selected.max_load_kg} kg ({loadPct}%)</span>
                   </div>
                   <div style={{height:8,background:'var(--border)',borderRadius:4,overflow:'hidden'}}>
@@ -222,24 +280,105 @@ export default function Transport() {
                 </div>
               )}
 
-              {/* Preços */}
-              {(selected.base_price||selected.price_per_km||selected.price_per_kg) && (
-                <div style={{padding:'10px 12px',background:'var(--green-light)',borderRadius:'var(--radius)',fontSize:13,borderLeft:'3px solid var(--green)',marginBottom:10}}>
-                  <div style={{fontSize:10,fontWeight:600,color:'var(--green)',marginBottom:6}}>💶 PREÇOS</div>
-                  <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-                    <span><strong>{selected.price_type||'Fixo'}</strong></span>
-                    {selected.base_price && <span>Base: <strong>{selected.currency||'EUR'} {parseFloat(selected.base_price).toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong></span>}
-                    {selected.price_per_km && <span>Por km: <strong>{selected.currency||'EUR'} {parseFloat(selected.price_per_km).toFixed(2)}</strong></span>}
-                    {selected.price_per_kg && <span>Por kg: <strong>{selected.currency||'EUR'} {parseFloat(selected.price_per_kg).toFixed(2)}</strong></span>}
+              {selected.notes && <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',fontSize:12,borderLeft:'3px solid var(--amber)',marginBottom:10}}>{selected.notes}</div>}
+            </div>
+
+            {/* Zonas de cobertura */}
+            <div className="card" style={{marginBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:14}}>🗺️ Zonas de cobertura</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Onde este transportador pode entregar</div>
+                </div>
+                <button className="btn btn-sm btn-primary" onClick={()=>setShowZoneForm(!showZoneForm)}><i className="ti ti-plus"/>Adicionar zona</button>
+              </div>
+
+              {showZoneForm && (
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'12px',marginBottom:12,border:'0.5px solid var(--border)'}}>
+                  <div className="form-grid" style={{gap:8}}>
+                    <div className="form-group"><label>Tipo</label>
+                      <select value={zoneForm.zone_type} onChange={e=>setZoneForm({...zoneForm,zone_type:e.target.value,region:'',country:''})}>
+                        <option value="Nacional">🇵🇹 Nacional</option>
+                        <option value="Internacional">✈️ Internacional</option>
+                      </select>
+                    </div>
+                    {zoneForm.zone_type==='Nacional' && (
+                      <div className="form-group"><label>Distrito / Região</label>
+                        <select value={zoneForm.region} onChange={e=>setZoneForm({...zoneForm,region:e.target.value})}>
+                          <option value="">— Todo o país —</option>
+                          {PT_DISTRICTS.map(d=><option key={d}>{d}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {zoneForm.zone_type==='Internacional' && (
+                      <div className="form-group"><label>País</label>
+                        <select value={zoneForm.country} onChange={e=>setZoneForm({...zoneForm,country:e.target.value})}>
+                          <option value="">Selecionar...</option>
+                          {EU_COUNTRIES.filter(c=>c!=='Portugal').map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <div className="form-group"><label>Cidade específica (opcional)</label>
+                      <input value={zoneForm.city} onChange={e=>setZoneForm({...zoneForm,city:e.target.value})} placeholder="Ex: Lisboa, Porto..." />
+                    </div>
+                    <div className="form-group full"><label>Notas</label>
+                      <input value={zoneForm.notes} onChange={e=>setZoneForm({...zoneForm,notes:e.target.value})} placeholder="Ex: Apenas às 2ªs feiras, entrega até 18h..." />
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}}>
+                    <button className="btn btn-sm" onClick={()=>setShowZoneForm(false)}>Cancelar</button>
+                    <button className="btn btn-primary btn-sm" onClick={handleZoneSave}>Guardar zona</button>
                   </div>
                 </div>
               )}
-              {selected.notes && <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',fontSize:12,borderLeft:'3px solid var(--amber)',marginBottom:10}}>{selected.notes}</div>}
 
-              <button className="btn" onClick={()=>setShowScheduleForm(!showScheduleForm)}><i className="ti ti-calendar-plus"/>Adicionar disponibilidade</button>
+              {zones.length===0
+                ? <div className="empty">Sem zonas definidas. Adiciona onde este transportador pode entregar!</div>
+                : <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {/* Nacional */}
+                    {nationalZones.length>0 && (
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',marginBottom:6}}>🇵🇹 NACIONAL</div>
+                        {nationalZones.map(z=>(
+                          <div key={z.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'var(--bg)',borderRadius:'var(--radius)',marginBottom:4,fontSize:12}}>
+                            <div>
+                              <span style={{fontWeight:500}}>{z.region||'Todo o país'}</span>
+                              {z.city && <span style={{color:'var(--text-muted)',marginLeft:6}}>· {z.city}</span>}
+                              {z.notes && <div style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>{z.notes}</div>}
+                            </div>
+                            <button onClick={()=>handleZoneDelete(z.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:14,marginLeft:6}}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Internacional */}
+                    {intlZones.length>0 && (
+                      <div style={{flex:1,minWidth:200}}>
+                        <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',marginBottom:6}}>✈️ INTERNACIONAL</div>
+                        {intlZones.map(z=>(
+                          <div key={z.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:4,fontSize:12}}>
+                            <div>
+                              <span style={{fontWeight:500,color:'var(--green)'}}>{z.country}</span>
+                              {z.city && <span style={{color:'var(--text-muted)',marginLeft:6}}>· {z.city}</span>}
+                              {z.notes && <div style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>{z.notes}</div>}
+                            </div>
+                            <button onClick={()=>handleZoneDelete(z.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:14,marginLeft:6}}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+              }
+            </div>
 
+            {/* Agenda */}
+            <div className="card" style={{marginBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <div style={{fontWeight:600,fontSize:14}}>📅 Disponibilidade</div>
+                <button className="btn btn-sm" onClick={()=>setShowScheduleForm(!showScheduleForm)}><i className="ti ti-calendar-plus"/>Adicionar</button>
+              </div>
               {showScheduleForm && (
-                <div style={{marginTop:10,padding:'12px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px',marginBottom:10}}>
                   <div className="form-grid" style={{gap:8}}>
                     <div className="form-group"><label>Data *</label><input type="date" value={schedForm.date} onChange={e=>setSchedForm({...schedForm,date:e.target.value})} /></div>
                     <div className="form-group"><label>Estado</label>
@@ -252,25 +391,19 @@ export default function Transport() {
                     <div className="form-group"><label>Carga actual (kg)</label><input type="number" value={schedForm.current_load} onChange={e=>setSchedForm({...schedForm,current_load:e.target.value})} /></div>
                     <div className="form-group"><label>Notas</label><input value={schedForm.notes} onChange={e=>setSchedForm({...schedForm,notes:e.target.value})} /></div>
                   </div>
-                  <div style={{display:'flex',gap:8,marginTop:8,justifyContent:'flex-end'}}>
+                  <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:8}}>
                     <button className="btn btn-sm" onClick={()=>setShowScheduleForm(false)}>Cancelar</button>
                     <button className="btn btn-primary btn-sm" onClick={handleScheduleSave} disabled={saving}>Guardar</button>
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Agenda e histórico */}
-            <div className="card">
-              <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>📅 Próximas disponibilidades</div>
-              {schedules.length===0
-                ? <div className="empty" style={{padding:'10px 0'}}>Sem agenda definida.</div>
+              {schedules.length===0 ? <div className="empty" style={{padding:'10px 0'}}>Sem agenda.</div>
                 : <table>
                     <thead><tr><th>Data</th><th>Saída</th><th>Regresso</th><th>Carga</th><th>Estado</th><th>Notas</th></tr></thead>
                     <tbody>
                       {schedules.map(s=>(
                         <tr key={s.id} style={{background:s.date===today?'var(--blue-light)':''}}>
-                          <td style={{fontWeight:s.date===today?700:400}}>{new Date(s.date).toLocaleDateString('pt-PT')} {s.date===today&&<span style={{color:'var(--blue)',fontSize:10,marginLeft:4}}>HOJE</span>}</td>
+                          <td style={{fontWeight:s.date===today?700:400}}>{new Date(s.date).toLocaleDateString('pt-PT')}{s.date===today&&<span style={{color:'var(--blue)',fontSize:10,marginLeft:4}}>HOJE</span>}</td>
                           <td>{s.depart_time?.slice(0,5)||'—'}</td>
                           <td>{s.return_time?.slice(0,5)||'—'}</td>
                           <td>{s.current_load||0} kg</td>
@@ -281,10 +414,12 @@ export default function Transport() {
                     </tbody>
                   </table>
               }
+            </div>
 
-              <div style={{fontSize:13,fontWeight:600,margin:'16px 0 12px'}}>🚚 Histórico de transportes</div>
-              {history.length===0
-                ? <div className="empty" style={{padding:'10px 0'}}>Sem transportes registados.</div>
+            {/* Histórico */}
+            <div className="card">
+              <div style={{fontWeight:600,fontSize:14,marginBottom:12}}>🚚 Histórico de transportes</div>
+              {history.length===0 ? <div className="empty">Sem transportes.</div>
                 : history.map(t=>(
                     <div key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'0.5px solid var(--border)',fontSize:13}}>
                       <div>
