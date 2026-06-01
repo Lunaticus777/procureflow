@@ -97,6 +97,7 @@ export default function Requisitions() {
       technical_contact_name: form.technical_contact_name||null,
       technical_contact_phone: form.technical_contact_phone||null,
       technical_contact_company: form.technical_contact_company||null,
+      technical_contact_email: form.technical_contact_email||null,
       technical_contact_notes: form.technical_contact_notes||null,
       delivery_type: form.delivery_type||'Obra',
       delivery_address: form.delivery_address||null,
@@ -228,6 +229,7 @@ export default function Requisitions() {
               <div className="form-group"><label>Nome</label><input value={form.technical_contact_name} onChange={e=>setForm({...form,technical_contact_name:e.target.value})} placeholder="Ex: João Silva" /></div>
               <div className="form-group"><label>Empresa</label><input value={form.technical_contact_company} onChange={e=>setForm({...form,technical_contact_company:e.target.value})} placeholder="Ex: Caixilharia Lda" /></div>
               <div className="form-group"><label>Telefone</label><input value={form.technical_contact_phone} onChange={e=>setForm({...form,technical_contact_phone:e.target.value})} /></div>
+              <div className="form-group"><label>Email</label><input type="email" value={form.technical_contact_email} onChange={e=>setForm({...form,technical_contact_email:e.target.value})} placeholder="email@exemplo.com" /></div>
               <div className="form-group"><label>Notas</label><input value={form.technical_contact_notes} onChange={e=>setForm({...form,technical_contact_notes:e.target.value})} placeholder="Ex: Tem as medidas exactas das janelas" /></div>
             </div>
           </div>
@@ -350,6 +352,14 @@ export default function Requisitions() {
                         <span style={{color:'var(--text-muted)'}}>Telefone: </span>
                         <a href={`tel:${selected.technical_contact_phone}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}>
                           <i className="ti ti-phone" style={{marginRight:4}}/>{selected.technical_contact_phone}
+                        </a>
+                      </div>
+                    )}
+                    {selected.technical_contact_email && (
+                      <div style={{gridColumn:'1/-1'}}>
+                        <span style={{color:'var(--text-muted)'}}>Email: </span>
+                        <a href={`mailto:${selected.technical_contact_email}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}>
+                          <i className="ti ti-mail" style={{marginRight:4}}/>{selected.technical_contact_email}
                         </a>
                       </div>
                     )}
