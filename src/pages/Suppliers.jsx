@@ -153,7 +153,7 @@ export default function Suppliers() {
           </div>
 
           {/* Histórico de avaliações do fornecedor seleccionado */}
-          {selectedSupplier && supplierReviews.length > 0 && (
+          {selectedSupplier && (
             <div className="card" style={{marginTop:12}}>
               <div className="card-header">
                 <span className="card-title">Avaliações — {scores.find(s=>s.id===selectedSupplier)?.name}</span>
