@@ -14,7 +14,7 @@ export default function TransportAgenda() {
   const [showForm, setShowForm] = useState(false)
   const [showStops, setShowStops] = useState(null)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'' })
+  const [form, setForm] = useState({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'', transport_cost:'', is_international:false, destination_country:'', vat_recoverable:'0' })
   const [stopForm, setStopForm] = useState({ carrier_id:'', address:'', city:'', stop_type:'Entrega final', arrival_time:'', notes:'' })
   const [saving, setSaving] = useState(false)
 
@@ -69,15 +69,20 @@ export default function TransportAgenda() {
         const order = clientOrders.find(o => o.id === form.client_order_id)
         if (order) loadDesc = `${order.ref_number} — ${order.description?.slice(0,80)}`
       }
+      const clientOrderId = form.client_order_id?.startsWith('c_') ? form.client_order_id.slice(2) : null
       const { data: inserted } = await supabase.from('transport_agenda').insert({
         carrier_id: form.carrier_id,
         planned_date: form.planned_date,
         departure_time: form.departure_time || null,
         load_description: loadDesc,
-        client_order_id: form.client_order_id || null,
+        client_order_id: clientOrderId,
         contact_date: contactDate.toISOString().split('T')[0],
         contact_status: 'Por fazer',
         notes: form.notes,
+        transport_cost: form.transport_cost ? parseFloat(form.transport_cost) : null,
+        is_international: form.is_international,
+        destination_country: form.destination_country || null,
+        vat_recoverable: form.vat_recoverable ? parseFloat(form.vat_recoverable) : 0,
       }).select().single()
 
       if (inserted && form.client_order_id) {
@@ -90,7 +95,7 @@ export default function TransportAgenda() {
           })
         }
       }
-      setForm({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'' })
+      setForm({ carrier_id:'', planned_date:'', load_description:'', departure_time:'', client_order_id:'', notes:'', transport_cost:'', is_international:false, destination_country:'', vat_recoverable:'0' })
       setShowForm(false)
       load()
     } catch (err) {
@@ -180,6 +185,21 @@ export default function TransportAgenda() {
             <div className="form-group full"><label>Notas</label>
               <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} />
             </div>
+            <div className="form-group"><label>Custo transporte (€)</label>
+              <input type="number" step="0.01" value={form.transport_cost} onChange={e=>setForm({...form,transport_cost:e.target.value})} placeholder="0.00" />
+            </div>
+            <div className="form-group" style={{flexDirection:'row',alignItems:'center',gap:8}}>
+              <input type="checkbox" checked={form.is_international} onChange={e=>setForm({...form,is_international:e.target.checked})} id="intl_transport" />
+              <label htmlFor="intl_transport" style={{margin:0,cursor:'pointer',fontWeight:500}}>✈️ Transporte internacional</label>
+            </div>
+            {form.is_international && <>
+              <div className="form-group"><label>País de destino</label>
+                <input value={form.destination_country} onChange={e=>setForm({...form,destination_country:e.target.value})} placeholder="Ex: Suíça, França..." />
+              </div>
+              <div className="form-group"><label>IVA recuperável (€)</label>
+                <input type="number" step="0.01" value={form.vat_recoverable} onChange={e=>setForm({...form,vat_recoverable:e.target.value})} placeholder="0.00" />
+              </div>
+            </>}
           </div>
           <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'8px 12px',fontSize:12,color:'var(--text-muted)',marginTop:4}}>
             <i className="ti ti-info-circle" style={{marginRight:6}}/>Alerta automático 3 dias antes para contactar o transportador.
@@ -219,6 +239,8 @@ export default function TransportAgenda() {
                         {urgent && <span style={{color:'var(--amber)',fontWeight:600,marginLeft:8}}>⚠️ Contactar até {new Date(a.contact_date).toLocaleDateString('pt-PT')}</span>}
                       </div>
                       {a.load_description && <div style={{fontSize:12,marginTop:4,color:'var(--text-muted)'}}><i className="ti ti-package" style={{marginRight:4}}/>{a.load_description}</div>}
+                      {a.transport_cost && <div style={{fontSize:12,marginTop:2,color:'var(--green)',fontWeight:500}}><i className="ti ti-coin-euro" style={{marginRight:4}}/>Custo: € {parseFloat(a.transport_cost).toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>}
+                      {a.is_international && <div style={{fontSize:12,marginTop:2,color:'var(--blue)',fontWeight:500}}>✈️ Internacional → {a.destination_country||'—'} {a.vat_recoverable>0?`· IVA recuperável: € ${parseFloat(a.vat_recoverable).toFixed(2)}`:''}</div>}
                       {a.client_orders && <div style={{fontSize:11,marginTop:2,color:'var(--blue)'}}><i className="ti ti-link" style={{marginRight:4}}/>{a.client_orders.ref_number} — {a.client_orders.delivery_city}</div>}
                     </div>
                     <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>

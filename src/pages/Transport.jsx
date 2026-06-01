@@ -11,7 +11,7 @@ export default function Transport() {
   const [editCarrier, setEditCarrier] = useState(null)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'' })
+  const [form, setForm] = useState({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'', price_type:'Fixo', base_price:'', price_per_km:'', price_per_kg:'', currency:'EUR', international:false, countries_served:'' })
   const [schedForm, setSchedForm] = useState({ date:'', depart_time:'', return_time:'', current_load:'0', status:'Disponível', notes:'' })
   const [saving, setSaving] = useState(false)
 
@@ -38,7 +38,7 @@ export default function Transport() {
 
   const openEdit = (c) => {
     setEditCarrier(c)
-    setForm({ name:c.name, vehicle_type:c.vehicle_type||'Furgão', plate:c.plate||'', phone:c.phone||'', mobile:c.mobile||'', email:c.email||'', max_load_kg:c.max_load_kg||'', routes:c.routes||'', notes:c.notes||'' })
+    setForm({ name:c.name, vehicle_type:c.vehicle_type||'Furgão', plate:c.plate||'', phone:c.phone||'', mobile:c.mobile||'', email:c.email||'', max_load_kg:c.max_load_kg||'', routes:c.routes||'', notes:c.notes||'', price_type:c.price_type||'Fixo', base_price:c.base_price||'', price_per_km:c.price_per_km||'', price_per_kg:c.price_per_kg||'', currency:c.currency||'EUR', international:c.international||false, countries_served:c.countries_served||'' })
     setShowForm(true)
   }
 
@@ -46,10 +46,10 @@ export default function Transport() {
     if (!form.name) return
     setSaving(true)
     if (editCarrier) {
-      await supabase.from('carriers').update({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null }).eq('id', editCarrier.id)
+      await supabase.from('carriers').update({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null, base_price: form.base_price ? parseFloat(form.base_price) : null, price_per_km: form.price_per_km ? parseFloat(form.price_per_km) : null, price_per_kg: form.price_per_kg ? parseFloat(form.price_per_kg) : null }).eq('id', editCarrier.id)
       setSelected({...editCarrier,...form})
     } else {
-      await supabase.from('carriers').insert({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null })
+      await supabase.from('carriers').insert({ ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null, base_price: form.base_price ? parseFloat(form.base_price) : null, price_per_km: form.price_per_km ? parseFloat(form.price_per_km) : null, price_per_kg: form.price_per_kg ? parseFloat(form.price_per_kg) : null })
     }
     setForm({ name:'', vehicle_type:'Furgão', plate:'', phone:'', mobile:'', email:'', max_load_kg:'', routes:'', notes:'' })
     setShowForm(false); setEditCarrier(null); setSaving(false); load()
@@ -100,6 +100,31 @@ export default function Transport() {
             <div className="form-group full"><label>Rotas habituais</label><input value={form.routes} onChange={e=>setForm({...form,routes:e.target.value})} placeholder="Ex: Lisboa / Setúbal / Almada" /></div>
             <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
           </div>
+
+          <div style={{marginTop:14,paddingTop:14,borderTop:'0.5px solid var(--border)'}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--blue)'}}><i className="ti ti-coin-euro" style={{marginRight:6}}/>Preços e condições</div>
+            <div className="form-grid">
+              <div className="form-group"><label>Tipo de preço</label>
+                <select value={form.price_type} onChange={e=>setForm({...form,price_type:e.target.value})}>
+                  {['Fixo','Por km','Por kg','Negociável','Incluído na encomenda'].map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Moeda</label>
+                <select value={form.currency} onChange={e=>setForm({...form,currency:e.target.value})}>
+                  {['EUR','CHF','GBP','USD'].map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              {(form.price_type==='Fixo'||form.price_type==='Negociável') && <div className="form-group"><label>Preço base ({form.currency})</label><input type="number" step="0.01" value={form.base_price} onChange={e=>setForm({...form,base_price:e.target.value})} placeholder="0.00" /></div>}
+              {form.price_type==='Por km' && <div className="form-group"><label>Preço por km ({form.currency})</label><input type="number" step="0.01" value={form.price_per_km} onChange={e=>setForm({...form,price_per_km:e.target.value})} /></div>}
+              {form.price_type==='Por kg' && <div className="form-group"><label>Preço por kg ({form.currency})</label><input type="number" step="0.01" value={form.price_per_kg} onChange={e=>setForm({...form,price_per_kg:e.target.value})} /></div>}
+              <div className="form-group full" style={{flexDirection:'row',alignItems:'center',gap:10}}>
+                <input type="checkbox" checked={form.international} onChange={e=>setForm({...form,international:e.target.checked})} id="intl_check" />
+                <label htmlFor="intl_check" style={{margin:0,cursor:'pointer'}}>Faz transportes internacionais (exportação)</label>
+              </div>
+              {form.international && <div className="form-group full"><label>Países servidos</label><input value={form.countries_served} onChange={e=>setForm({...form,countries_served:e.target.value})} placeholder="Ex: Portugal, Suíça, França, Espanha" /></div>}
+            </div>
+          </div>
+
           <div className="form-actions">
             <button className="btn" onClick={()=>{setShowForm(false);setEditCarrier(null)}}>Cancelar</button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editCarrier?'Guardar':'Guardar Transportador'}</button>
@@ -174,6 +199,7 @@ export default function Transport() {
                 <div style={{background:'var(--bg)',borderRadius:'var(--radius)',padding:'10px 12px'}}>
                   <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>🗺️ Rotas</div>
                   <div style={{fontSize:12}}>{selected.routes||'Não definidas'}</div>
+                  {selected.international && <div style={{fontSize:11,marginTop:4,color:'var(--green)',fontWeight:500}}>✈️ Internacional: {selected.countries_served||'vários países'}</div>}
                 </div>
               </div>
 
@@ -190,6 +216,18 @@ export default function Transport() {
                 </div>
               )}
 
+              {/* Preços */}
+              {(selected.base_price||selected.price_per_km||selected.price_per_kg) && (
+                <div style={{padding:'10px 12px',background:'var(--green-light)',borderRadius:'var(--radius)',fontSize:13,borderLeft:'3px solid var(--green)',marginBottom:10}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'var(--green)',marginBottom:6}}>💶 PREÇOS</div>
+                  <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+                    <span><strong>{selected.price_type||'Fixo'}</strong></span>
+                    {selected.base_price && <span>Base: <strong>{selected.currency||'EUR'} {parseFloat(selected.base_price).toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong></span>}
+                    {selected.price_per_km && <span>Por km: <strong>{selected.currency||'EUR'} {parseFloat(selected.price_per_km).toFixed(2)}</strong></span>}
+                    {selected.price_per_kg && <span>Por kg: <strong>{selected.currency||'EUR'} {parseFloat(selected.price_per_kg).toFixed(2)}</strong></span>}
+                  </div>
+                </div>
+              )}
               {selected.notes && <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',fontSize:12,borderLeft:'3px solid var(--amber)',marginBottom:10}}>{selected.notes}</div>}
 
               <button className="btn" onClick={()=>setShowScheduleForm(!showScheduleForm)}><i className="ti ti-calendar-plus"/>Adicionar disponibilidade</button>

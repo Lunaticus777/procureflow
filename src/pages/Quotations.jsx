@@ -26,7 +26,7 @@ export default function Quotations() {
   const [showFollowup, setShowFollowup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'' })
+  const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false })
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
 
@@ -60,7 +60,7 @@ export default function Quotations() {
 
   const openEdit = (q) => {
     setEditQuote(q)
-    setForm({ supplier_id:q.supplier_id, supplier_ref:q.supplier_ref||'', unit_price:q.unit_price, discount_pct:q.discount_pct, delivery_days:q.delivery_days||'', valid_until:q.valid_until||'', payment_terms:q.payment_terms||'30 dias', notes:q.notes||'' })
+    setForm({ supplier_id:q.supplier_id, supplier_ref:q.supplier_ref||'', unit_price:q.unit_price, discount_pct:q.discount_pct, delivery_days:q.delivery_days||'', valid_until:q.valid_until||'', payment_terms:q.payment_terms||'30 dias', notes:q.notes||'', vat_rate:q.vat_rate||'23', vat_exempt:q.vat_exempt||false, price_includes_vat:q.price_includes_vat||false })
     setShowForm(true)
   }
 
@@ -73,6 +73,7 @@ export default function Quotations() {
         supplier_id: form.supplier_id, supplier_ref: form.supplier_ref, unit_price: parseFloat(form.unit_price),
         discount_pct: parseFloat(form.discount_pct)||0, delivery_days: parseInt(form.delivery_days)||null,
         valid_until: form.valid_until||null, payment_terms: form.payment_terms, notes: form.notes,
+        vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
       }).eq('id', editQuote.id)
     } else {
       await supabase.from('quotations').insert({
@@ -80,6 +81,7 @@ export default function Quotations() {
         supplier_ref: form.supplier_ref, unit_price: parseFloat(form.unit_price),
         discount_pct: parseFloat(form.discount_pct)||0, delivery_days: parseInt(form.delivery_days)||null,
         valid_until: form.valid_until||null, payment_terms: form.payment_terms, notes: form.notes,
+        vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
       })
       await supabase.from('requisitions').update({ status:'Em cotação' }).eq('id', selReq.id)
     }
@@ -217,6 +219,51 @@ export default function Quotations() {
                 </div>}
                 <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
               </div>
+
+              <div style={{marginTop:12,paddingTop:12,borderTop:'0.5px solid var(--border)'}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--blue)',marginBottom:10}}><i className="ti ti-receipt-tax" style={{marginRight:6}}/>IVA e Fiscalidade</div>
+                <div className="form-grid" style={{gap:8}}>
+                  <div className="form-group" style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                    <input type="checkbox" checked={form.vat_exempt} onChange={e=>setForm({...form,vat_exempt:e.target.checked,vat_rate:e.target.checked?'0':'23'})} id="vat_exempt" />
+                    <label htmlFor="vat_exempt" style={{margin:0,cursor:'pointer',color:'var(--green)',fontWeight:500}}>✈️ Exportação / IVA 0% (recuperável)</label>
+                  </div>
+                  <div className="form-group" style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                    <input type="checkbox" checked={form.price_includes_vat} onChange={e=>setForm({...form,price_includes_vat:e.target.checked})} id="incl_vat" />
+                    <label htmlFor="incl_vat" style={{margin:0,cursor:'pointer'}}>Preço já inclui IVA</label>
+                  </div>
+                  {!form.vat_exempt && <div className="form-group"><label>Taxa IVA (%)</label>
+                    <select value={form.vat_rate} onChange={e=>setForm({...form,vat_rate:e.target.value})}>
+                      {['0','6','13','23'].map(r=><option key={r}>{r}</option>)}
+                    </select>
+                  </div>}
+                  {/* Cálculo resumo */}
+                  {form.unit_price && <div className="form-group full">
+                    <div style={{padding:'10px 12px',background:'var(--bg)',borderRadius:'var(--radius)',fontSize:12}}>
+                      {(() => {
+                        const unitPrice = parseFloat(form.unit_price)||0
+                        const disc = parseFloat(form.discount_pct)||0
+                        const qty = parseFloat(selReq?.quantity)||1
+                        const vatRate = parseFloat(form.vat_rate)||0
+                        const priceAfterDisc = unitPrice * (1 - disc/100)
+                        const totalExclVat = priceAfterDisc * qty
+                        const vatAmount = form.vat_exempt ? 0 : totalExclVat * vatRate/100
+                        const totalInclVat = totalExclVat + vatAmount
+                        return (
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 16px'}}>
+                            <div><span style={{color:'var(--text-muted)'}}>Preço unit. s/ desconto: </span>€ {unitPrice.toFixed(2)}</div>
+                            <div><span style={{color:'var(--text-muted)'}}>Após desconto ({disc}%): </span><strong>€ {priceAfterDisc.toFixed(2)}</strong></div>
+                            <div><span style={{color:'var(--text-muted)'}}>Total s/IVA ({qty} {selReq?.unit}): </span><strong style={{color:'var(--blue)'}}>€ {totalExclVat.toFixed(2)}</strong></div>
+                            {!form.vat_exempt && <div><span style={{color:'var(--text-muted)'}}>IVA {vatRate}%: </span>€ {vatAmount.toFixed(2)}</div>}
+                            {!form.vat_exempt && <div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Total c/IVA: </span><strong style={{color:'var(--amber)'}}>€ {totalInclVat.toFixed(2)}</strong></div>}
+                            {form.vat_exempt && <div style={{gridColumn:'1/-1',color:'var(--green)',fontWeight:500}}>✈️ IVA 0% — exportação — IVA recuperável: € 0,00</div>}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </div>}
+                </div>
+              </div>
+
               <div className="form-actions">
                 <button className="btn" onClick={()=>{setShowForm(false);setEditQuote(null)}}>Cancelar</button>
                 <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editQuote?'Guardar':'Guardar Cotação'}</button>
@@ -252,6 +299,18 @@ export default function Quotations() {
                         </div>
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Entrega</span><span>{q.delivery_days?`${q.delivery_days} dias`:'—'}</span></div>
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Pagamento</span><span>{q.payment_terms}</span></div>
+                        <div className="quote-field">
+                          <span style={{color:'var(--text-muted)'}}>IVA</span>
+                          <span style={{color:q.vat_exempt?'var(--green)':''}}>{q.vat_exempt?'✈️ 0% (exportação)':`${q.vat_rate||23}%`}</span>
+                        </div>
+                        {!q.vat_exempt && q.vat_rate > 0 && (
+                          <div className="quote-field">
+                            <span style={{color:'var(--text-muted)'}}>Total c/IVA</span>
+                            <span style={{fontWeight:600,color:'var(--amber)'}}>
+                              € {(parseFloat(q.final_price) * parseFloat(selReq?.quantity||1) * (1+(parseFloat(q.vat_rate||23)/100))).toLocaleString('pt-PT',{minimumFractionDigits:2})}
+                            </span>
+                          </div>
+                        )}
                         {q.notes && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:6,fontStyle:'italic',padding:'4px 6px',background:'var(--bg)',borderRadius:4}}>{q.notes}</div>}
 
                         {/* Último relançamento */}
