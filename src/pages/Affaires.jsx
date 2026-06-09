@@ -74,7 +74,11 @@ export default function Affaires() {
       setSelected({ ...editAffaire, ...form, budget: form.budget ? parseFloat(form.budget) : null, clients: editAffaire.clients })
     } else {
       const count = affaires.length + 1
-      await supabase.from('affaires').insert({ ...form, ref_number: form.ref_number || `NEG-${String(count).padStart(3,'0')}`, budget: form.budget ? parseFloat(form.budget) : null, created_by: emp?.id || null })
+      const { data: lastAff } = await supabase.from('affaires').select('ref_number').like('ref_number','NEG-%').order('ref_number',{ascending:false}).limit(1)
+      const lastNum = lastAff?.[0]?.ref_number ? parseInt(lastAff[0].ref_number.replace('NEG-',''))||0 : 0
+      const refNum = form.ref_number || `NEG-${String(lastNum+1).padStart(3,'0')}`
+      const { error: insErr } = await supabase.from('affaires').insert({ ...form, ref_number: refNum, budget: form.budget ? parseFloat(form.budget) : null, created_by: emp?.id || null })
+      if (insErr) { alert('Erro: ' + insErr.message); setSaving(false); return }
     }
     setForm({ ref_number:'', name:'', client_id:'', address:'', city:'', status:'Aberta', start_date:'', end_date:'', budget:'', notes:'' })
     setShowForm(false); setEditAffaire(null); setSaving(false); load()
