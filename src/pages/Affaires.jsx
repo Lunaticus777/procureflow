@@ -27,6 +27,7 @@ export default function Affaires() {
   const [filterStatus, setFilterStatus] = useState('')
   const [form, setForm] = useState({ ref_number:'', name:'', client_id:'', address:'', city:'', status:'Aberta', start_date:'', end_date:'', budget:'', notes:'' })
   const [saving, setSaving] = useState(false)
+  const [formErrors, setFormErrors] = useState({})
 
   const load = async () => {
     const [{ data: af }, { data: cl }] = await Promise.all([
@@ -66,18 +67,43 @@ export default function Affaires() {
   }
 
   const handleSave = async () => {
-    if (!form.name) return
+    const errors = {}
+    if (!form.name) errors.name = 'Nome obrigatório'
+    if (Object.keys(errors).length > 0) { setFormErrors(errors); return }
+    setFormErrors({})
     setSaving(true)
     const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
     if (editAffaire) {
-      await supabase.from('affaires').update({ ...form, budget: form.budget ? parseFloat(form.budget) : null }).eq('id', editAffaire.id)
+      await supabase.from('affaires').update({
+        name: form.name,
+        client_id: form.client_id || null,
+        address: form.address || null,
+        city: form.city || null,
+        status: form.status,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        budget: form.budget ? parseFloat(form.budget) : null,
+        notes: form.notes || null,
+      }).eq('id', editAffaire.id)
       setSelected({ ...editAffaire, ...form, budget: form.budget ? parseFloat(form.budget) : null, clients: editAffaire.clients })
     } else {
       const count = affaires.length + 1
       const { data: lastAff } = await supabase.from('affaires').select('ref_number').like('ref_number','NEG-%').order('ref_number',{ascending:false}).limit(1)
       const lastNum = lastAff?.[0]?.ref_number ? parseInt(lastAff[0].ref_number.replace('NEG-',''))||0 : 0
       const refNum = form.ref_number || `NEG-${String(lastNum+1).padStart(3,'0')}`
-      const { error: insErr } = await supabase.from('affaires').insert({ ...form, ref_number: refNum, budget: form.budget ? parseFloat(form.budget) : null, created_by: emp?.id || null })
+      const { error: insErr } = await supabase.from('affaires').insert({
+        ref_number: refNum,
+        name: form.name,
+        client_id: form.client_id || null,
+        address: form.address || null,
+        city: form.city || null,
+        status: form.status || 'Aberta',
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        budget: form.budget ? parseFloat(form.budget) : null,
+        notes: form.notes || null,
+        created_by: emp?.id || null,
+      })
       if (insErr) { alert('Erro: ' + insErr.message); setSaving(false); return }
     }
     setForm({ ref_number:'', name:'', client_id:'', address:'', city:'', status:'Aberta', start_date:'', end_date:'', budget:'', notes:'' })
@@ -153,7 +179,7 @@ export default function Affaires() {
                 {['Aberta','Em curso','Concluída','Cancelada'].map(s=><option key={s}>{s}</option>)}
               </select>
             </div>
-            <div className="form-group full"><label>Nome do negócio *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: 10 Apartamentos Lisboa T2" /></div>
+            <div className="form-group full"><label>Nome do negócio *</label><input value={form.name} onChange={e=>{setForm({...form,name:e.target.value});if(e.target.value)setFormErrors(f=>({...f,name:undefined}))}} placeholder="Ex: Reabilitação Edifício Lisboa..." style={{borderColor:formErrors.name?'var(--red)':undefined}} />{formErrors.name&&<div style={{fontSize:11,color:'var(--red)',marginTop:3}}>{formErrors.name}</div>}</div>
             <div className="form-group full"><label>Cliente</label>
               <select value={form.client_id} onChange={e=>setForm({...form,client_id:e.target.value})}>
                 <option value="">— Selecionar cliente —</option>
@@ -162,13 +188,13 @@ export default function Affaires() {
             </div>
             <div className="form-group full"><label>Morada da obra</label><input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} /></div>
             <div className="form-group"><label>Cidade</label><input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} /></div>
-            <div className="form-group"><label>Orçamento (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:e.target.value})} /></div>
+            <div className="form-group"><label>Orçamento (€) <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional, preencher depois</span></label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:e.target.value})} placeholder="0.00" /></div>
             <div className="form-group"><label>Data início</label><input type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})} /></div>
-            <div className="form-group"><label>Data fim prevista</label><input type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})} /></div>
+            <div className="form-group"><label>Data fim prevista <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label><input type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})} /></div>
             <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
           </div>
           <div className="form-actions">
-            <button className="btn" onClick={()=>{setShowForm(false);setEditAffaire(null)}}>Cancelar</button>
+            <button className="btn" onClick={()=>{setShowForm(false);setEditAffaire(null);setFormErrors({})}}>Cancelar</button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editAffaire?'Guardar alterações':'Guardar Negócio'}</button>
           </div>
         </div>
