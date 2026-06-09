@@ -15,6 +15,7 @@ import Stock from './pages/Stock'
 import Clients from './pages/Clients'
 import Affaires from './pages/Affaires'
 import AffaireFinancials from './pages/AffaireFinancials'
+import ResetPassword from './pages/ResetPassword'
 
 const PAGE_TITLES = {
   '/': 'Geral',
@@ -139,6 +140,10 @@ function Layout() {
 }
 
 export default function App() {
+  // Handle password reset link directly
+  if (window.location.hash.includes('type=recovery') || window.location.hash.includes('access_token')) {
+    return <AuthProvider><BrowserRouter><ResetPassword /></BrowserRouter></AuthProvider>
+  }
   return (
     <AuthProvider>
       <BrowserRouter>
