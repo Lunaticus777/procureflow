@@ -63,7 +63,7 @@ export default function Requisitions() {
   const openEdit = (r) => {
     setEditReq(r)
     setForm({
-      client_ref:r.client_ref||'', description:r.description, quantity:r.quantity, unit:r.unit, priority:r.priority,
+      client_ref:r.client_ref||'', product_ref:r.product_ref||'', product_brand:r.product_brand||'', product_url:r.product_url||'', description:r.description, quantity:r.quantity, unit:r.unit, priority:r.priority,
       needed_by:r.needed_by||'', min_quotes:r.min_quotes, notes:r.notes||'', affaire_id:r.affaire_id||'',
       image_url:r.image_url||'',
       technical_contact_name:r.technical_contact_name||'', technical_contact_phone:r.technical_contact_phone||'',
@@ -92,6 +92,9 @@ export default function Requisitions() {
     const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
     const payload = {
       client_ref: form.client_ref||null,
+      product_ref: form.product_ref||null,
+      product_brand: form.product_brand||null,
+      product_url: form.product_url||null,
       description: form.description, quantity: parseFloat(form.quantity), unit: form.unit,
       priority: form.priority, needed_by: form.needed_by||null, min_quotes: parseInt(form.min_quotes),
       notes: form.notes, affaire_id: form.affaire_id||null, image_url: form.image_url||null,
@@ -159,6 +162,18 @@ export default function Requisitions() {
             <div className="form-group">
               <label>Ref. do cliente <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label>
               <input value={form.client_ref} onChange={e=>setForm({...form,client_ref:e.target.value})} placeholder="Ex: REF-CLI-001, Janelas T2, Porta principal..." />
+            </div>
+            <div className="form-group">
+              <label>Ref. técnica do produto <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label>
+              <input value={form.product_ref} onChange={e=>setForm({...form,product_ref:e.target.value})} placeholder="Ex: REF-4521, SKU-A001..." />
+            </div>
+            <div className="form-group">
+              <label>Marca / Fabricante <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label>
+              <input value={form.product_brand} onChange={e=>setForm({...form,product_brand:e.target.value})} placeholder="Ex: Velux, Roca, Schneider..." />
+            </div>
+            <div className="form-group full">
+              <label>Link do produto <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— para ver o produto exacto</span></label>
+              <input value={form.product_url} onChange={e=>setForm({...form,product_url:e.target.value})} placeholder="https://www.exemplo.com/produto..." />
             </div>
             <div className="form-group full">
               <label>Descrição do material *</label>
@@ -313,6 +328,13 @@ export default function Requisitions() {
                 <div>
                   <div style={{fontSize:12,color:'var(--text-muted)',fontWeight:500,marginBottom:4}}>{selected.ref_number}{selected.client_ref && <span style={{marginLeft:8,background:'var(--amber-light)',color:'#633806',padding:'1px 6px',borderRadius:10,fontWeight:600}}>Ref. cliente: {selected.client_ref}</span>} · criado por <strong>{selected.employees?.emp_code||'—'}</strong> {selected.employees?.full_name||''}</div>
                   <div style={{fontSize:17,fontWeight:600,marginBottom:6}}>{selected.description}</div>
+                  {(selected.product_brand || selected.product_ref) && (
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:4}}>
+                      {selected.product_brand && <span style={{fontWeight:500,color:'var(--text)'}}>{selected.product_brand}</span>}
+                      {selected.product_ref && <span style={{marginLeft:6,fontFamily:'monospace',background:'var(--bg)',padding:'1px 6px',borderRadius:4,fontSize:11}}>#{selected.product_ref}</span>}
+                      {selected.product_url && <a href={selected.product_url} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:'var(--blue)',fontSize:11,textDecoration:'none'}}><i className="ti ti-external-link" style={{marginRight:3}}/>Ver produto</a>}
+                    </div>
+                  )}
                   <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                     <span className={`badge ${STATUS_CLASS[selected.status]||''}`}>{selected.status}</span>
                     <span style={{fontSize:11,fontWeight:600,color:PRIO_COLOR[selected.priority],background:PRIO_BG[selected.priority],padding:'2px 8px',borderRadius:10}}>Prioridade {selected.priority}</span>
