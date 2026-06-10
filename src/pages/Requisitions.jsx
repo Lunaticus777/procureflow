@@ -136,8 +136,11 @@ export default function Requisitions() {
 
   const handleDelete = async (id) => {
     if (!confirm('Tem a certeza que quer apagar esta requisição?')) return
+    const req = rows.find(r => r.id === id)
     const { error } = await supabase.from('requisitions').delete().eq('id', id)
     if (error) { alert('Erro ao apagar: ' + error.message); return }
+    const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+    await logActivity({ empId: emp?.id, action: 'deleted', entityType: 'requisition', entityRef: req?.ref_number, description: `apagou requisição ${req?.ref_number} — ${req?.description?.slice(0,50)}` })
     if (selected?.id === id) setSelected(null)
     load()
   }
