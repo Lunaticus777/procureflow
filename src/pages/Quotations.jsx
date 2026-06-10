@@ -102,7 +102,10 @@ export default function Quotations() {
   }
 
   const handleApprove = async (q) => {
+    // Mark this one as approved
     await supabase.from('quotations').update({ selected: true }).eq('id', q.id)
+    // Mark all others for same requisition as rejected
+    await supabase.from('quotations').update({ selected: false, rejected: true }).eq('requisition_id', selReq.id).neq('id', q.id)
     await supabase.from('requisitions').update({ status:'Aprovado' }).eq('id', selReq.id)
     const count = Date.now()
     const total = q.final_price * selReq.quantity
@@ -306,8 +309,9 @@ export default function Quotations() {
                     const daysSince = lastFollowup ? Math.floor((new Date()-new Date(lastFollowup.contact_date))/86400000) : null
                     const totalQuote = parseFloat(q.final_price) * parseFloat(selReq.quantity)
                     return (
-                      <div key={q.id} className={`quote-card ${i===0&&!q.selected?'best':''}`}>
-                        {i===0&&!q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--blue)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>💰 Melhor preço</span></div>}
+                      <div key={q.id} className={`quote-card ${i===0&&!q.selected&&!q.rejected?'best':''}`} style={{opacity:q.rejected?0.5:1,filter:q.rejected?'grayscale(80%)':'none'}}>
+                        {q.rejected && <div style={{marginBottom:8}}><span style={{background:'var(--text-muted)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✗ Não aprovado</span></div>}
+                        {i===0&&!q.selected&&!q.rejected && <div style={{marginBottom:8}}><span style={{background:'var(--blue)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>💰 Melhor preço</span></div>}
                         {q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--green)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✓ Aprovado → Encomendado</span></div>}
                         <div style={{fontWeight:600,marginBottom:10,fontSize:14}}>{q.suppliers?.name}</div>
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Preço unit.</span><span>€ {parseFloat(q.unit_price).toFixed(2)}</span></div>
@@ -348,7 +352,7 @@ export default function Quotations() {
                         )}
 
                         <div style={{marginTop:10,display:'flex',gap:6,flexWrap:'wrap'}}>
-                          {!q.selected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
+                          {!q.selected && !q.rejected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
                           <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
                           <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
                           {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>}
