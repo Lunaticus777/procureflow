@@ -40,6 +40,7 @@ function Layout() {
   const location = useLocation()
   const [userRole, setUserRole] = React.useState(null)
   const [showActivity, setShowActivity] = React.useState(false)
+  const [totalAlerts, setTotalAlerts] = React.useState(0)
   const [empCode, setEmpCode] = React.useState('')
 
   React.useEffect(() => {
@@ -49,6 +50,13 @@ function Layout() {
           .then(({ data }) => {
             if (data) { setUserRole(data.role); setEmpCode(data.emp_code||'') }
           })
+        // Load total alerts: stock + urgent tasks
+        Promise.all([
+          supabase.from('stock_alerts').select('*', { count: 'exact', head: true }),
+          supabase.from('internal_tasks').select('*', { count: 'exact', head: true }).eq('priority', 'Urgente').neq('status', 'Feito'),
+        ]).then(([{ count: s }, { count: t }]) => {
+          setTotalAlerts((s||0) + (t||0))
+        })
       })
     }
   }, [session])
@@ -110,7 +118,7 @@ function Layout() {
         <header className="topbar">
           <div className="topbar-title">{title}</div>
           <div className="topbar-actions">
-            <ActivityPanel show={showActivity} onToggle={()=>setShowActivity(s=>!s)} />
+            <ActivityPanel show={showActivity} onToggle={()=>setShowActivity(s=>!s)} totalAlerts={totalAlerts} />
             <button className="btn btn-primary" onClick={()=>{ nav('/affaires'); setTimeout(()=>{ const btn = document.querySelector('[data-new-affaire]'); if(btn) btn.click() }, 100) }} style={{fontSize:13}}>
               <i className="ti ti-plus" />Novo Negócio
             </button>

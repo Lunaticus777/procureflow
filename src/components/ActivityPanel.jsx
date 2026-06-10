@@ -31,7 +31,7 @@ const initials = (emp) => {
   return emp.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default function ActivityPanel({ show, onToggle }) {
+export default function ActivityPanel({ show, onToggle, totalAlerts=0 }) {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
@@ -70,11 +70,11 @@ export default function ActivityPanel({ show, onToggle }) {
   return (
     <>
       {/* Bell button */}
-      <button onClick={onToggle} style={{position:'relative',background:'none',border:'0.5px solid var(--border)',borderRadius:'var(--radius)',cursor:'pointer',color:'var(--text-muted)',fontSize:16,padding:'6px 10px',display:'flex',alignItems:'center',gap:4}}>
-        <i className="ti ti-bell"/>
-        {unreadCount > 0 && (
+      <button onClick={onToggle} style={{position:'relative',background:'none',border:'0.5px solid var(--border)',borderRadius:'var(--radius)',cursor:'pointer',color:totalAlerts>0?'var(--red)':'var(--text-muted)',fontSize:16,padding:'6px 10px',display:'flex',alignItems:'center',gap:4}}>
+        <i className={`ti ${totalAlerts>0?'ti-bell-ringing':'ti-bell'}`}/>
+        {(unreadCount > 0 || totalAlerts > 0) && (
           <span style={{position:'absolute',top:-4,right:-4,background:'var(--red)',color:'white',borderRadius:'50%',fontSize:9,width:16,height:16,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : (totalAlerts > 9 ? '9+' : totalAlerts)}
           </span>
         )}
       </button>
