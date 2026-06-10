@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
@@ -15,6 +15,7 @@ import Stock from './pages/Stock'
 import Clients from './pages/Clients'
 import Affaires from './pages/Affaires'
 import AffaireFinancials from './pages/AffaireFinancials'
+import ActivityPanel from './components/ActivityPanel'
 import ResetPassword from './pages/ResetPassword'
 
 const PAGE_TITLES = {
@@ -38,6 +39,7 @@ function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [userRole, setUserRole] = React.useState(null)
+  const [showActivity, setShowActivity] = React.useState(false)
   const [empCode, setEmpCode] = React.useState('')
 
   React.useEffect(() => {
@@ -108,6 +110,7 @@ function Layout() {
         <header className="topbar">
           <div className="topbar-title">{title}</div>
           <div className="topbar-actions">
+            <ActivityPanel show={showActivity} onToggle={()=>setShowActivity(s=>!s)} />
             <button className="btn btn-primary" onClick={()=>{ nav('/affaires'); setTimeout(()=>{ const btn = document.querySelector('[data-new-affaire]'); if(btn) btn.click() }, 100) }} style={{fontSize:13}}>
               <i className="ti ti-plus" />Novo Negócio
             </button>

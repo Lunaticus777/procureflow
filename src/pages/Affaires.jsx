@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { logActivity } from '../hooks/useActivity'
 import { useRole } from '../hooks/useRole'
 
 const STATUS_CLASS = { 'Aberta':'badge-quotation','Em curso':'badge-ordered','Concluída':'badge-delivered','Cancelada':'badge-cancelled' }
@@ -105,6 +106,7 @@ export default function Affaires() {
         created_by: emp?.id || null,
       })
       if (insErr) { alert('Erro: ' + insErr.message); setSaving(false); return }
+      await logActivity({ empId: emp?.id, action: 'created', entityType: 'affaire', entityRef: refNum, description: `criou negócio ${refNum} — ${form.name}` })
     }
     setForm({ ref_number:'', name:'', client_id:'', address:'', city:'', status:'Aberta', start_date:'', end_date:'', budget:'', notes:'' })
     setShowForm(false); setEditAffaire(null); setSaving(false); load()

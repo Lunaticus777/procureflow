@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
+import { logActivity } from '../hooks/useActivity'
 
 const STATUS_CLASS = {
   'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved',
@@ -45,6 +46,7 @@ export default function Requisitions() {
   const [filterPrio, setFilterPrio] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState('cards') // 'cards' | 'list'
   const [imagePreview, setImagePreview] = useState(null)
   const fileRef = useRef()
 
@@ -111,12 +113,16 @@ export default function Requisitions() {
     if (editReq) {
       const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
       if (error) { alert('Erro: ' + error.message); setSaving(false); return }
+      await logActivity({ empId: emp?.id, action: 'updated', entityType: 'requisition', entityRef: editReq.ref_number, description: `actualizou requisição ${editReq.ref_number} — ${form.description.slice(0,50)}` })
     } else {
       const { count: totalCount } = await supabase.from('requisitions').select('*', { count: 'exact', head: true })
       const refNum = `REQ-${String((totalCount||0) + 1).padStart(3,'0')}`
       const { error } = await supabase.from('requisitions').insert({
         ...payload, ref_number: refNum, created_by: emp?.id||null, status: 'Pendente'
       })
+      if (!error) {
+        await logActivity({ empId: emp?.id, action: 'created', entityType: 'requisition', entityRef: refNum, description: `criou requisição ${refNum} — ${form.description.slice(0,50)}`, affaireId: form.affaire_id||null })
+      }
       if (error) {
         if (error.code === '23505') {
           await supabase.from('requisitions').insert({
@@ -267,6 +273,10 @@ export default function Requisitions() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Requisições ({filtered.length}{filtered.length!==rows.length?` / ${rows.length}`:''})</span>
+              <div style={{display:'flex',gap:6}}>
+                <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')} title="Vista cartões"><i className="ti ti-layout-grid"/></button>
+                <button className={`btn btn-sm ${viewMode==='list'?'btn-primary':''}`} onClick={()=>setViewMode('list')} title="Vista lista"><i className="ti ti-list"/></button>
+              </div>
               <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditReq(null);setForm(EMPTY_FORM);setSelected(null)}}><i className="ti ti-plus"/>Nova</button>
             </div>
 
@@ -285,7 +295,32 @@ export default function Requisitions() {
 
             {filtered.length === 0
               ? <div className="empty">{rows.length===0?'Sem requisições.':'Nenhum resultado.'}</div>
-              : <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              : viewMode==='list'
+                ? <table>
+                    <thead><tr><th>Ref.</th><th>Ref. Cliente</th><th>Descrição</th><th>Marca/Ref.</th><th>Obra</th><th>Qtd.</th><th>Prio.</th><th>Estado</th><th>Por</th><th></th></tr></thead>
+                    <tbody>
+                      {filtered.map(r=>(
+                        <tr key={r.id} style={{cursor:'pointer',background:selected?.id===r.id?'var(--blue-light)':''}} onClick={()=>setSelected(selected?.id===r.id?null:r)}>
+                          <td style={{fontWeight:600,fontSize:12}}>{r.ref_number}</td>
+                          <td style={{fontSize:11,color:'var(--amber)'}}>{r.client_ref||'—'}</td>
+                          <td style={{maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</td>
+                          <td style={{fontSize:11,color:'var(--text-muted)'}}>{r.product_brand||''} {r.product_ref?`#${r.product_ref}`:''}</td>
+                          <td style={{fontSize:11,color:'var(--blue)'}}>{r.affaires?.ref_number||'—'}</td>
+                          <td style={{fontSize:12}}>{r.quantity} {r.unit}</td>
+                          <td><span className={({'Alta':'prio-high','Média':'prio-med','Baixa':'prio-low'})[r.priority]||''}>{r.priority}</span></td>
+                          <td><span className={`badge ${({'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'})[r.status]||''}`}>{r.status}</span></td>
+                          <td style={{fontSize:11,color:'var(--text-muted)'}}>{r.employees?.emp_code||'—'}</td>
+                          <td onClick={e=>e.stopPropagation()}>
+                            <div style={{display:'flex',gap:4}}>
+                              <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/></button>
+                              {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/></button>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                : <div style={{display:'flex',flexDirection:'column',gap:8}}>
                   {filtered.map(r=>(
                     <div key={r.id}
                       onClick={()=>setSelected(selected?.id===r.id?null:r)}
@@ -316,6 +351,7 @@ export default function Requisitions() {
                     </div>
                   ))}
                 </div>
+              }
             }
           </div>
         </div>
