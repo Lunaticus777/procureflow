@@ -67,439 +67,283 @@ export default function Requisitions() {
     const affaireName = affaires.find(a => a.id === affaireId)?.name || 'Todas'
     const csvRows = [
       ['Ref.','Ref.Cliente','Descrição','Marca','Ref.Técnica','Qtd.','Unid.','Prioridade','Estado','Obra','Data necessária','Local entrega','Contacto técnico','Telefone'],
-      ...data.map(r => [
-        r.ref_number, r.client_ref||'', r.description, r.product_brand||'', r.product_ref||'',
-        r.quantity, r.unit, r.priority, r.status,
-        r.affaires?.name||'', r.needed_by||'', r.delivery_type||'',
-        r.technical_contact_name||'', r.technical_contact_phone||''
-      ])
+      ...data.map(r => [r.ref_number, r.client_ref||'', r.description, r.product_brand||'', r.product_ref||'', r.quantity, r.unit, r.priority, r.status, r.affaires?.name||'', r.needed_by||'', r.delivery_type||'', r.technical_contact_name||'', r.technical_contact_phone||''])
     ]
     const csv = csvRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
     const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `Requisicoes_${affaireName.replace(/\s/g,'_')}.csv`
-    a.click(); URL.revokeObjectURL(url)
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = `Requisicoes_${affaireName.replace(/ /g,'_')}.csv`; a.click()
   }
 
   const exportPDF = (affaireId) => {
     const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
     const affaireName = affaires.find(a => a.id === affaireId)?.name || 'Todas as obras'
     const win = window.open('', '_blank')
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Requisições — ${affaireName}</title>
-    <style>
-      body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #222; }
-      h1 { font-size: 16px; margin-bottom: 4px; } .sub { color: #666; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; }
-      th { background: #f0f0f0; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; border: 0.5px solid #ccc; }
-      td { padding: 6px 8px; border: 0.5px solid #e0e0e0; vertical-align: top; }
-      tr:nth-child(even) { background: #fafafa; }
-      .badge { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
-      .pend { background: #e8f4fd; color: #1a6fa0; } .aprov { background: #eaf3de; color: #3b6d11; }
-      .alta { background: #fcebeb; color: #a32d2d; } .media { background: #faeeda; color: #633806; }
-    </style></head><body>
-    <h1>Requisições — ${affaireName}</h1>
-    <div class="sub">Exportado em ${new Date().toLocaleDateString('pt-PT')} · ${data.length} requisição(ões)</div>
-    <table><thead><tr><th>Ref.</th><th>Ref.Cli.</th><th>Descrição</th><th>Marca / Ref.Técnica</th><th>Qtd.</th><th>Prioridade</th><th>Estado</th><th>Entrega</th><th>Contacto técnico</th></tr></thead><tbody>
-    ${data.map(r => `<tr>
-      <td style="font-family:monospace">${r.ref_number}</td>
-      <td>${r.client_ref||'—'}</td>
-      <td><strong>${r.description}</strong>${r.notes?`<br><small style="color:#666">${r.notes.slice(0,80)}</small>`:''}</td>
-      <td>${r.product_brand||''}${r.product_ref?` · #${r.product_ref}`:''}</td>
-      <td>${r.quantity} ${r.unit}</td>
-      <td><span class="badge ${r.priority==='Alta'?'alta':'media'}">${r.priority}</span></td>
-      <td><span class="badge pend">${r.status}</span></td>
-      <td>${r.delivery_type||'—'}${r.delivery_city?`<br>${r.delivery_city}`:''}</td>
-      <td>${r.technical_contact_name||'—'}${r.technical_contact_phone?`<br><small>${r.technical_contact_phone}</small>`:''}</td>
-    </tr>`).join('')}
-    </tbody></table></body></html>`
-    win.document.write(html)
+    if (!win) { alert('Active os popups para exportar PDF'); return }
+    const rows2 = data.map(r => `<tr><td style="font-family:monospace">${r.ref_number}</td><td>${r.client_ref||'—'}</td><td><strong>${r.description}</strong>${r.notes?`<br><small style="color:#666">${r.notes.slice(0,80)}</small>`:''}</td><td>${r.product_brand||''}${r.product_ref?` #${r.product_ref}`:''}</td><td>${r.quantity} ${r.unit}</td><td>${r.priority}</td><td>${r.status}</td><td>${r.delivery_type||'—'}${r.delivery_city?`<br>${r.delivery_city}`:''}</td><td>${r.technical_contact_name||'—'}${r.technical_contact_phone?`<br>${r.technical_contact_phone}`:''}</td></tr>`).join('')
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Requisições — ${affaireName}</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#222}h1{font-size:16px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#f0f0f0;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:0.5px solid #ccc}td{padding:6px 8px;border:0.5px solid #e0e0e0;vertical-align:top}tr:nth-child(even){background:#fafafa}</style></head><body><h1>Requisições — ${affaireName}</h1><div class="sub">Exportado em ${new Date().toLocaleDateString('pt-PT')} · ${data.length} requisição(ões)</div><table><thead><tr><th>Ref.</th><th>Ref.Cli.</th><th>Descrição</th><th>Marca/Ref.</th><th>Qtd.</th><th>Prio.</th><th>Estado</th><th>Entrega</th><th>Contacto</th></tr></thead><tbody>${rows2}</tbody></table></body></html>`)
     win.document.close()
-    setTimeout(() => win.print(), 500)
+    setTimeout(() => win.print(), 600)
   }
 
-  const openEdit = (r) => {
-    setEditReq(r)
-    setForm({
-      client_ref:r.client_ref||'', product_ref:r.product_ref||'', product_brand:r.product_brand||'', product_url:r.product_url||'', description:r.description, quantity:r.quantity, unit:r.unit, priority:r.priority,
-      needed_by:r.needed_by||'', min_quotes:r.min_quotes, notes:r.notes||'', affaire_id:r.affaire_id||'',
-      image_url:r.image_url||'',
-      technical_contact_name:r.technical_contact_name||'', technical_contact_phone:r.technical_contact_phone||'',
-      technical_contact_company:r.technical_contact_company||'', technical_contact_notes:r.technical_contact_notes||''
-    })
-    setImagePreview(null)
-    setShowForm(true)
-    setSelected(null)
-  }
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setImagePreview(ev.target.result)
-    reader.readAsDataURL(file)
-    const path = `requisitions/${Date.now()}_${file.name}`
-    const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
-    if (error) { alert('Erro ao carregar imagem: ' + error.message); return }
-    setForm(f => ({ ...f, image_url: path }))
-  }
-
-  const handleSave = async () => {
-    if (!form.description || !form.quantity) return
-    setSaving(true)
-    const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-    const payload = {
-      client_ref: form.client_ref||null,
-      product_ref: form.product_ref||null,
-      product_brand: form.product_brand||null,
-      product_url: form.product_url||null,
-      description: form.description, quantity: parseFloat(form.quantity), unit: form.unit,
-      priority: form.priority, needed_by: form.needed_by||null, min_quotes: parseInt(form.min_quotes),
-      notes: form.notes, affaire_id: form.affaire_id||null, image_url: form.image_url||null,
-      technical_contact_name: form.technical_contact_name||null,
-      technical_contact_phone: form.technical_contact_phone||null,
-      technical_contact_company: form.technical_contact_company||null,
-      technical_contact_email: form.technical_contact_email||null,
-      technical_contact_notes: form.technical_contact_notes||null,
-      delivery_type: form.delivery_type||'Obra',
-      delivery_address: form.delivery_address||null,
-      delivery_city: form.delivery_city||null,
-      delivery_notes: form.delivery_notes||null,
-    }
-    if (editReq) {
-      const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
-      if (error) { alert('Erro: ' + error.message); setSaving(false); return }
-      await logActivity({ empId: emp?.id, action: 'updated', entityType: 'requisition', entityRef: editReq.ref_number, description: `actualizou requisição ${editReq.ref_number} — ${form.description.slice(0,50)}` })
-    } else {
-      const { count: totalCount } = await supabase.from('requisitions').select('*', { count: 'exact', head: true })
-      const refNum = `REQ-${String((totalCount||0) + 1).padStart(3,'0')}`
-      const { error } = await supabase.from('requisitions').insert({
-        ...payload, ref_number: refNum, created_by: emp?.id||null, status: 'Pendente'
-      })
-      if (!error) {
-        await logActivity({ empId: emp?.id, action: 'created', entityType: 'requisition', entityRef: refNum, description: `criou requisição ${refNum} — ${form.description.slice(0,50)}`, affaireId: form.affaire_id||null })
-      }
-      if (error) {
-        if (error.code === '23505') {
-          await supabase.from('requisitions').insert({
-            ...payload, ref_number: `REQ-${Date.now().toString().slice(-6)}`, created_by: emp?.id||null, status: 'Pendente'
-          })
-        } else { alert('Erro: ' + error.message); setSaving(false); return }
-      }
-    }
-    setForm(EMPTY_FORM); setShowForm(false); setEditReq(null); setSaving(false); load()
-  }
-
-  const handleDelete = async (id) => {
-    if (!confirm('Tem a certeza que quer apagar esta requisição?')) return
-    const req = rows.find(r => r.id === id)
-    const { error } = await supabase.from('requisitions').delete().eq('id', id)
-    if (error) { alert('Erro ao apagar: ' + error.message); return }
-    const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-    await logActivity({ empId: emp?.id, action: 'deleted', entityType: 'requisition', entityRef: req?.ref_number, description: `apagou requisição ${req?.ref_number} — ${req?.description?.slice(0,50)}` })
-    if (selected?.id === id) setSelected(null)
-    load()
-  }
-
-  const filtered = rows.filter(r => {
-    const s = search.toLowerCase()
-    const matchSearch = !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s)
-    const matchStatus = !filterStatus || r.status === filterStatus
-    const matchPrio = !filterPrio || r.priority === filterPrio
-    return matchSearch && matchStatus && matchPrio
-  })
+  const PRIO_COLOR = { 'Alta':'var(--red)','Média':'var(--amber)','Baixa':'var(--text-muted)' }
+  const PRIO_BG = { 'Alta':'var(--red-light)','Média':'var(--amber-light)','Baixa':'var(--bg)' }
+  const STATUS_CL = { 'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Em trânsito':'badge-transit','Entregue':'badge-delivered','Cancelado':'badge-cancelled' }
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
-    <div>
-      {showForm && (
-        <div className="card" style={{maxWidth:660,marginBottom:20}}>
-          <div className="card-header"><span className="card-title">{editReq?'Editar Requisição':'Nova Requisição de Material'}</span></div>
-          <div className="form-grid">
-            <div className="form-group full">
-              <label>Negócio / Obra (opcional)</label>
-              <select value={form.affaire_id} onChange={e=>setForm({...form,affaire_id:e.target.value})}>
-                <option value="">— Sem obra associada —</option>
-                {affaires.map(a=><option key={a.id} value={a.id}>{a.ref_number} — {a.name}</option>)}
-              </select>
+    <div style={{display:'flex',height:'calc(100vh - 56px)',overflow:'hidden'}}>
+      <div style={{width:selected||showForm?'46%':'100%',flexShrink:0,display:'flex',flexDirection:'column',borderRight:selected||showForm?'1px solid var(--border)':'none',transition:'width 0.25s'}}>
+        <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--bg-card)',flexShrink:0}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
+            <div style={{position:'relative',flex:1}}>
+              <i className="ti ti-search" style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)',fontSize:14,pointerEvents:'none'}}/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pesquisa — descrição, ref., marca, obra, contacto..." style={{width:'100%',border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px 7px 32px',fontSize:13,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}/>
+              {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:14}}>✕</button>}
             </div>
-            <div className="form-group">
-              <label>Ref. do cliente <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label>
-              <input value={form.client_ref} onChange={e=>setForm({...form,client_ref:e.target.value})} placeholder="Ex: REF-CLI-001, Janelas T2, Porta principal..." />
+            <div style={{display:'flex',gap:4}}>
+              <button className={`btn btn-sm ${viewMode==='list'?'btn-primary':''}`} onClick={()=>setViewMode('list')}><i className="ti ti-list"/></button>
+              <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')}><i className="ti ti-layout-grid"/></button>
             </div>
-            <div className="form-group">
-              <label>Ref. técnica do produto <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label>
-              <input value={form.product_ref} onChange={e=>setForm({...form,product_ref:e.target.value})} placeholder="Ex: REF-4521, SKU-A001..." />
-            </div>
-            <div className="form-group">
-              <label>Marca / Fabricante <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— opcional</span></label>
-              <input value={form.product_brand} onChange={e=>setForm({...form,product_brand:e.target.value})} placeholder="Ex: Velux, Roca, Schneider..." />
-            </div>
-            <div className="form-group full">
-              <label>Link do produto <span style={{fontWeight:400,color:'var(--text-muted)',fontSize:11}}>— para ver o produto exacto</span></label>
-              <input value={form.product_url} onChange={e=>setForm({...form,product_url:e.target.value})} placeholder="https://www.exemplo.com/produto..." />
-            </div>
-            <div className="form-group full">
-              <label>Descrição do material *</label>
-              <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Descrição detalhada do material a encomendar..." style={{minHeight:80}} />
-            </div>
-            <div className="form-group">
-              <label>Quantidade *</label>
-              <input type="number" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label>Unidade</label>
-              <select value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}>
-                {['un.','m','m²','m³','kg','t','lt','cx','rolo','vara','bte','saco','pct'].map(u=><option key={u}>{u}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Prioridade</label>
-              <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>
-                {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Data necessária</label>
-              <input type="date" value={form.needed_by} onChange={e=>setForm({...form,needed_by:e.target.value})} />
-            </div>
-            <div className="form-group">
-              <label>Nº mín. fornecedores</label>
-              <select value={form.min_quotes} onChange={e=>setForm({...form,min_quotes:e.target.value})}>
-                {['1','2','3','4'].map(n=><option key={n}>{n}</option>)}
-              </select>
-            </div>
-            <div className="form-group full">
-              <label>Notas / Especificações técnicas</label>
-              <textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Marca preferida, normas técnicas, medidas, referências..." />
-            </div>
-            <div className="form-group full">
-              <label>Foto / Imagem de referência</label>
-              <input type="file" accept="image/*" ref={fileRef} onChange={handleImageChange} style={{fontSize:12}} />
-              {imagePreview && <img src={imagePreview} alt="preview" style={{marginTop:8,maxWidth:'100%',maxHeight:200,borderRadius:'var(--radius)',objectFit:'contain'}} />}
-            </div>
-          </div>
-
-          <div style={{marginTop:16,paddingTop:16,borderTop:'0.5px solid var(--border)'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--green)'}}>
-              <i className="ti ti-truck-delivery" style={{marginRight:6}}/>Local de entrega
-            </div>
-            <div className="form-grid">
-              <div className="form-group full"><label>Tipo de entrega</label>
-                <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
-                  {['Obra (morada da obra)','Armazém','Outro endereço','Entrega intermédia (2+ transportes)'].map(t=><option key={t}>{t}</option>)}
-                </select>
-              </div>
-              {form.delivery_type!=='Obra (morada da obra)' && <>
-                <div className="form-group full"><label>Morada de entrega</label>
-                  <input value={form.delivery_address} onChange={e=>setForm({...form,delivery_address:e.target.value})} placeholder="Morada completa" />
-                </div>
-                <div className="form-group"><label>Cidade</label>
-                  <input value={form.delivery_city} onChange={e=>setForm({...form,delivery_city:e.target.value})} />
-                </div>
-              </>}
-              <div className="form-group full"><label>Instruções de entrega</label>
-                <input value={form.delivery_notes} onChange={e=>setForm({...form,delivery_notes:e.target.value})} placeholder="Ex: Ligar antes de entregar, entrar pela traseira..." />
+            <div style={{position:'relative'}} onMouseEnter={e=>e.currentTarget.querySelector('.emenu').style.display='block'} onMouseLeave={e=>e.currentTarget.querySelector('.emenu').style.display='none'}>
+              <button className="btn" style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}><i className="ti ti-download" style={{fontSize:13}}/>Exportar <i className="ti ti-chevron-down" style={{fontSize:11}}/></button>
+              <div className="emenu" style={{display:'none',position:'absolute',top:'100%',right:0,background:'var(--bg-card)',border:'0.5px solid var(--border)',borderRadius:'var(--radius)',boxShadow:'0 4px 12px rgba(0,0,0,0.12)',zIndex:200,minWidth:220,padding:'4px 0'}}>
+                <div style={{padding:'4px 10px',fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px'}}>Excel / CSV</div>
+                <div onClick={()=>exportExcel(null)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-spreadsheet"/>Todas</div>
+                {affaires.map(a=><div key={a.id} onClick={()=>exportExcel(a.id)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-spreadsheet"/>{a.ref_number} — {a.name.slice(0,22)}</div>)}
+                <div style={{borderTop:'0.5px solid var(--border)',margin:'4px 0',padding:'4px 10px',fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px'}}>PDF</div>
+                <div onClick={()=>exportPDF(null)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-type-pdf"/>Todas</div>
+                {affaires.map(a=><div key={a.id+'p'} onClick={()=>exportPDF(a.id)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-type-pdf"/>{a.ref_number} — {a.name.slice(0,22)}</div>)}
               </div>
             </div>
+            <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditReq(null);setForm(EMPTY_FORM);setSelected(null);setFormErrors({})}}><i className="ti ti-plus"/>Nova</button>
           </div>
-
-          <div style={{marginTop:16,paddingTop:16,borderTop:'0.5px solid var(--border)'}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:'var(--blue)'}}>
-              <i className="ti ti-user-check" style={{marginRight:6}}/>Contacto técnico
-            </div>
-            <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:10}}>Pessoa que pode dar informações sobre o material (ex: empresa de colocação, técnico especializado)</div>
-            <div className="form-grid">
-              <div className="form-group"><label>Nome</label><input value={form.technical_contact_name} onChange={e=>setForm({...form,technical_contact_name:e.target.value})} placeholder="Ex: João Silva" /></div>
-              <div className="form-group"><label>Empresa</label><input value={form.technical_contact_company} onChange={e=>setForm({...form,technical_contact_company:e.target.value})} placeholder="Ex: Caixilharia Lda" /></div>
-              <div className="form-group"><label>Telefone</label><input value={form.technical_contact_phone} onChange={e=>setForm({...form,technical_contact_phone:e.target.value})} /></div>
-              <div className="form-group"><label>Email</label><input type="email" value={form.technical_contact_email} onChange={e=>setForm({...form,technical_contact_email:e.target.value})} placeholder="email@exemplo.com" /></div>
-              <div className="form-group"><label>Notas</label><input value={form.technical_contact_notes} onChange={e=>setForm({...form,technical_contact_notes:e.target.value})} placeholder="Ex: Tem as medidas exactas das janelas" /></div>
-            </div>
-          </div>
-
-          <div className="form-actions">
-            <button className="btn" onClick={()=>{setShowForm(false);setEditReq(null)}}>Cancelar</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editReq?'Guardar alterações':'Guardar Requisição'}</button>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+            <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Todos os estados</option>
+              {['Pendente','Em cotação','Aprovado','Encomendado','Em trânsito','Entregue','Cancelado'].map(s=><option key={s}>{s}</option>)}
+            </select>
+            <select value={filterPrio} onChange={e=>setFilterPrio(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Todas prioridades</option>
+              {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
+            </select>
+            <select value={filterAffaire} onChange={e=>setFilterAffaire(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Todas as obras</option>
+              {affaires.map(a=><option key={a.id} value={a.id}>{a.ref_number} — {a.name}</option>)}
+            </select>
+            {(search||filterStatus||filterPrio||filterAffaire)&&<button className="btn btn-sm" onClick={()=>{setSearch('');setFilterStatus('');setFilterPrio('');setFilterAffaire('')}} style={{fontSize:11}}>✕ Limpar</button>}
+            <span style={{fontSize:11,color:'var(--text-muted)',marginLeft:'auto'}}>{filtered.length} / {rows.length}</span>
           </div>
         </div>
-      )}
-
-      <div style={{display:'flex',gap:12}}>
-        {/* Lista */}
-        <div style={{flex:'0 0 420px',minWidth:0}}>
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">Requisições ({filtered.length}{filtered.length!==rows.length?` / ${rows.length}`:''})</span>
-              <div style={{display:'flex',gap:6}}>
-                <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')} title="Vista cartões"><i className="ti ti-layout-grid"/></button>
-                <button className={`btn btn-sm ${viewMode==='list'?'btn-primary':''}`} onClick={()=>setViewMode('list')} title="Vista lista"><i className="ti ti-list"/></button>
-              </div>
-              <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditReq(null);setForm(EMPTY_FORM);setSelected(null)}}><i className="ti ti-plus"/>Nova</button>
-            </div>
-
-            <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:120,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
-              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
-                <option value="">Todos estados</option>
-                {['Pendente','Em cotação','Aprovado','Encomendado','Entregue','Cancelado'].map(s=><option key={s}>{s}</option>)}
-              </select>
-              <select value={filterPrio} onChange={e=>setFilterPrio(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
-                <option value="">Todas prio.</option>
-                {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
-              </select>
-              {(search||filterStatus||filterPrio) && <button className="btn" onClick={()=>{setSearch('');setFilterStatus('');setFilterPrio('')}}>✕</button>}
-            </div>
-
-            {filtered.length === 0
-              ? <div className="empty">{rows.length===0?'Sem requisições.':'Nenhum resultado.'}</div>
-              : viewMode==='list'
-                ? <table>
-                    <thead><tr><th>Ref.</th><th>Ref. Cliente</th><th>Descrição</th><th>Marca/Ref.</th><th>Obra</th><th>Qtd.</th><th>Prio.</th><th>Estado</th><th>Por</th><th></th></tr></thead>
-                    <tbody>
-                      {filtered.map(r=>(
-                        <tr key={r.id} style={{cursor:'pointer',background:selected?.id===r.id?'var(--blue-light)':''}} onClick={()=>setSelected(selected?.id===r.id?null:r)}>
-                          <td style={{fontWeight:600,fontSize:12}}>{r.ref_number}</td>
-                          <td style={{fontSize:11,color:'var(--amber)'}}>{r.client_ref||'—'}</td>
-                          <td style={{maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</td>
-                          <td style={{fontSize:11,color:'var(--text-muted)'}}>{r.product_brand||''} {r.product_ref?`#${r.product_ref}`:''}</td>
-                          <td style={{fontSize:11,color:'var(--blue)'}}>{r.affaires?.ref_number||'—'}</td>
-                          <td style={{fontSize:12}}>{r.quantity} {r.unit}</td>
-                          <td><span className={({'Alta':'prio-high','Média':'prio-med','Baixa':'prio-low'})[r.priority]||''}>{r.priority}</span></td>
-                          <td><span className={`badge ${({'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'})[r.status]||''}`}>{r.status}</span></td>
-                          <td style={{fontSize:11,color:'var(--text-muted)'}}>{r.employees?.emp_code||'—'}</td>
-                          <td onClick={e=>e.stopPropagation()}>
-                            <div style={{display:'flex',gap:4}}>
-                              <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/></button>
-                              {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/></button>}
-                            </div>
-                          </td>
-                        </tr>
+        <div style={{flex:1,overflowY:'auto'}}>
+          {filtered.length===0
+            ? <div className="empty">{rows.length===0?'Sem requisições.':'Nenhum resultado.'}</div>
+            : viewMode==='list'
+              ? <table style={{width:'100%',borderCollapse:'collapse'}}>
+                  <thead style={{position:'sticky',top:0,background:'var(--bg-card)',zIndex:1}}>
+                    <tr style={{borderBottom:'1px solid var(--border)'}}>
+                      {['Ref.','Descrição','Ref.Cli.','Obra','Qtd.','Prio.','Estado','Por',''].map(h=>(
+                        <th key={h} style={{padding:'7px 10px',textAlign:'left',fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',whiteSpace:'nowrap'}}>{h}</th>
                       ))}
-                    </tbody>
-                  </table>
-                : <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                  {filtered.map(r=>(
-                    <div key={r.id}
-                      onClick={()=>setSelected(selected?.id===r.id?null:r)}
-                      style={{border:`1px solid ${selected?.id===r.id?'var(--blue)':'var(--border)'}`,borderLeft:`4px solid ${PRIO_COLOR[r.priority]||'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',background:selected?.id===r.id?'var(--blue-light)':'var(--bg-card)',transition:'all 0.1s'}}>
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                            <span style={{fontWeight:600,fontSize:12,color:'var(--text-muted)'}}>{r.ref_number}</span>
-                            {r.affaires && <span style={{fontSize:11,color:'var(--blue)',background:'var(--blue-light)',padding:'1px 6px',borderRadius:10}}>{r.affaires.ref_number}</span>}
-                          </div>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(r=>(
+                      <tr key={r.id} onClick={()=>setSelected(selected?.id===r.id?null:r)}
+                        style={{cursor:'pointer',borderBottom:'0.5px solid var(--border)',background:selected?.id===r.id?'var(--blue-light)':'',borderLeft:`3px solid ${selected?.id===r.id?'var(--blue)':PRIO_COLOR[r.priority]||'transparent'}`}}>
+                        <td style={{padding:'8px 10px',fontFamily:'monospace',fontSize:11,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{r.ref_number}</td>
+                        <td style={{padding:'8px 10px',maxWidth:180}}>
                           <div style={{fontWeight:500,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
-                          {r.client_ref && <div style={{fontSize:11,color:'#633806',background:'var(--amber-light)',padding:'1px 6px',borderRadius:10,marginBottom:3,display:'inline-block',fontWeight:500}}>📎 {r.client_ref}</div>}
-                          <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
-                            {r.quantity} {r.unit}
-                            {r.needed_by && ` · Preciso: ${new Date(r.needed_by).toLocaleDateString('pt-PT')}`}
-                            {r.employees?.emp_code && ` · ${r.employees.emp_code}`}
+                          {r.product_brand&&<div style={{fontSize:11,color:'var(--text-muted)'}}>{r.product_brand}{r.product_ref?` · #${r.product_ref}`:''}</div>}
+                        </td>
+                        <td style={{padding:'8px 8px'}}>{r.client_ref?<span style={{fontSize:10,fontWeight:500,background:'var(--amber-light)',color:'#633806',padding:'2px 5px',borderRadius:10}}>{r.client_ref}</span>:<span style={{color:'var(--border-hover)'}}>—</span>}</td>
+                        <td style={{padding:'8px 8px',fontSize:11,color:'var(--blue)',whiteSpace:'nowrap'}}>{r.affaires?.ref_number||'—'}</td>
+                        <td style={{padding:'8px 8px',fontSize:12,whiteSpace:'nowrap'}}>{r.quantity} {r.unit}</td>
+                        <td style={{padding:'8px 8px'}}><span style={{fontSize:10,fontWeight:600,color:PRIO_COLOR[r.priority],background:PRIO_BG[r.priority],padding:'2px 5px',borderRadius:10}}>{r.priority}</span></td>
+                        <td style={{padding:'8px 8px'}}><span className={`badge ${STATUS_CL[r.status]||''}`}>{r.status}</span></td>
+                        <td style={{padding:'8px 8px',fontSize:11,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{r.employees?.emp_code||'—'}</td>
+                        <td style={{padding:'8px 4px'}} onClick={e=>e.stopPropagation()}>
+                          <div style={{display:'flex',gap:3}}>
+                            <button className="btn btn-sm" style={{padding:'3px 6px'}} onClick={()=>openEdit(r)}><i className="ti ti-edit"/></button>
+                            {isAdmin&&<button className="btn btn-sm" style={{padding:'3px 6px',color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/></button>}
                           </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              : <div style={{padding:12,display:'flex',flexDirection:'column',gap:8}}>
+                  {filtered.map(r=>(
+                    <div key={r.id} onClick={()=>setSelected(selected?.id===r.id?null:r)}
+                      style={{border:`1px solid ${selected?.id===r.id?'var(--blue)':'var(--border)'}`,borderLeft:`4px solid ${PRIO_COLOR[r.priority]||'var(--border)'}`,borderRadius:'var(--radius)',padding:'10px 12px',cursor:'pointer',background:selected?.id===r.id?'var(--blue-light)':'var(--bg-card)'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:3,flexWrap:'wrap'}}>
+                            <span style={{fontSize:11,fontFamily:'monospace',color:'var(--text-muted)'}}>{r.ref_number}</span>
+                            {r.client_ref&&<span style={{fontSize:10,background:'var(--amber-light)',color:'#633806',padding:'1px 5px',borderRadius:10,fontWeight:500}}>{r.client_ref}</span>}
+                            {r.affaires&&<span style={{fontSize:10,color:'var(--blue)',background:'var(--blue-light)',padding:'1px 5px',borderRadius:10}}>{r.affaires.ref_number}</span>}
+                          </div>
+                          <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
+                          <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{r.quantity} {r.unit} · {r.employees?.emp_code||'—'}</div>
                         </div>
-                        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4,flexShrink:0}}>
-                          <span className={`badge ${STATUS_CLASS[r.status]||''}`}>{r.status}</span>
-                          <span style={{fontSize:10,fontWeight:600,color:PRIO_COLOR[r.priority],background:PRIO_BG[r.priority],padding:'1px 6px',borderRadius:10}}>{r.priority}</span>
+                        <div style={{display:'flex',flexDirection:'column',gap:4,alignItems:'flex-end',flexShrink:0}}>
+                          <span className={`badge ${STATUS_CL[r.status]||''}`} style={{fontSize:10}}>{r.status}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:PRIO_COLOR[r.priority],background:PRIO_BG[r.priority],padding:'1px 5px',borderRadius:10}}>{r.priority}</span>
                         </div>
-                      </div>
-                      <div style={{display:'flex',gap:4,marginTop:8}} onClick={e=>e.stopPropagation()}>
-                        <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/>Editar</button>
-                        {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/>Apagar</button>}
                       </div>
                     </div>
                   ))}
                 </div>
-              }
-            }
-          </div>
+          }
         </div>
+      </div>
 
-        {/* Detalhe */}
-        {selected && (
-          <div style={{flex:1,minWidth:0,position:'sticky',top:16,maxHeight:'calc(100vh - 80px)',overflowY:'auto'}}>
-            <div className="card" style={{position:'sticky',top:0}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-                <div>
-                  <div style={{fontSize:12,color:'var(--text-muted)',fontWeight:500,marginBottom:4}}>{selected.ref_number}{selected.client_ref && <span style={{marginLeft:8,background:'var(--amber-light)',color:'#633806',padding:'1px 6px',borderRadius:10,fontWeight:600}}>Ref. cliente: {selected.client_ref}</span>} · criado por <strong>{selected.employees?.emp_code||'—'}</strong> {selected.employees?.full_name||''}</div>
-                  <div style={{fontSize:17,fontWeight:600,marginBottom:6}}>{selected.description}</div>
-                  {(selected.product_brand || selected.product_ref) && (
-                    <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:4}}>
-                      {selected.product_brand && <span style={{fontWeight:500,color:'var(--text)'}}>{selected.product_brand}</span>}
-                      {selected.product_ref && <span style={{marginLeft:6,fontFamily:'monospace',background:'var(--bg)',padding:'1px 6px',borderRadius:4,fontSize:11}}>#{selected.product_ref}</span>}
-                      {selected.product_url && <a href={selected.product_url} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:'var(--blue)',fontSize:11,textDecoration:'none'}}><i className="ti ti-external-link" style={{marginRight:3}}/>Ver produto</a>}
-                    </div>
-                  )}
-                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                    <span className={`badge ${STATUS_CLASS[selected.status]||''}`}>{selected.status}</span>
-                    <span style={{fontSize:11,fontWeight:600,color:PRIO_COLOR[selected.priority],background:PRIO_BG[selected.priority],padding:'2px 8px',borderRadius:10}}>Prioridade {selected.priority}</span>
-                    {selected.affaires && <span style={{fontSize:11,color:'var(--blue)',background:'var(--blue-light)',padding:'2px 8px',borderRadius:10}}><i className="ti ti-building" style={{marginRight:3}}/>{selected.affaires.ref_number} — {selected.affaires.name}</span>}
-                  </div>
-                </div>
-                <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
+      {(selected||showForm)&&(
+        <div style={{flex:1,minWidth:0,overflowY:'auto',background:'var(--bg)'}}>
+          {showForm&&(
+            <div style={{padding:20}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                <div style={{fontWeight:700,fontSize:16}}>{editReq?'Editar Requisição':'Nova Requisição'}</div>
+                <button className="btn btn-sm" onClick={()=>{setShowForm(false);setEditReq(null)}}><i className="ti ti-x"/></button>
               </div>
-
-              {/* Informações principais */}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 24px',fontSize:13,marginBottom:16,padding:'12px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
-                <div><span style={{color:'var(--text-muted)'}}>Quantidade: </span><strong>{selected.quantity} {selected.unit}</strong></div>
-                <div><span style={{color:'var(--text-muted)'}}>Mín. fornecedores: </span><strong>{selected.min_quotes}</strong></div>
-                {selected.needed_by && <div><span style={{color:'var(--text-muted)'}}>Data necessária: </span><strong style={{color:'var(--amber)'}}>{new Date(selected.needed_by).toLocaleDateString('pt-PT')}</strong></div>}
-                <div><span style={{color:'var(--text-muted)'}}>Criado em: </span>{new Date(selected.created_at).toLocaleDateString('pt-PT')}</div>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Identificação</div>
+              <div className="form-grid" style={{marginBottom:16}}>
+                <div className="form-group full"><label>Negócio / Obra</label>
+                  <select value={form.affaire_id} onChange={e=>setForm({...form,affaire_id:e.target.value})}>
+                    <option value="">— Sem obra —</option>
+                    {affaires.map(a=><option key={a.id} value={a.id}>{a.ref_number} — {a.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Ref. cliente</label><input value={form.client_ref} onChange={e=>setForm({...form,client_ref:e.target.value})} placeholder="Ex: Janelas T2..."/></div>
+                <div className="form-group"><label>Ref. técnica</label><input value={form.product_ref} onChange={e=>setForm({...form,product_ref:e.target.value})} placeholder="SKU, REF..."/></div>
+                <div className="form-group"><label>Marca</label><input value={form.product_brand} onChange={e=>setForm({...form,product_brand:e.target.value})} placeholder="Ex: Velux..."/></div>
+                <div className="form-group"><label>Link do produto</label><input value={form.product_url} onChange={e=>setForm({...form,product_url:e.target.value})} placeholder="https://..."/></div>
               </div>
-
-              {/* Notas */}
-              {selected.notes && (
-                <div style={{marginBottom:14,padding:'10px 12px',background:'var(--bg)',borderRadius:'var(--radius)',borderLeft:'3px solid var(--blue)'}}>
-                  <div style={{fontSize:11,fontWeight:600,color:'var(--blue)',marginBottom:4}}>📋 ESPECIFICAÇÕES / NOTAS</div>
-                  <div style={{fontSize:13,whiteSpace:'pre-wrap'}}>{selected.notes}</div>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Material</div>
+              <div className="form-grid" style={{marginBottom:16}}>
+                <div className="form-group full">
+                  <label>Descrição *</label>
+                  <textarea value={form.description} onChange={e=>{setForm({...form,description:e.target.value});if(e.target.value)setFormErrors(f=>({...f,description:undefined}))}} placeholder="Descrição detalhada..." style={{minHeight:70,borderColor:formErrors.description?'var(--red)':undefined}}/>
+                  {formErrors.description&&<div style={{fontSize:11,color:'var(--red)',marginTop:2}}>{formErrors.description}</div>}
                 </div>
-              )}
-
-              {/* Imagem */}
-              {selected.image_url && (
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>🖼️ IMAGEM DE REFERÊNCIA</div>
-                  <ImageFromStorage path={selected.image_url} />
+                <div className="form-group">
+                  <label>Quantidade *</label>
+                  <input type="number" value={form.quantity} onChange={e=>{setForm({...form,quantity:e.target.value});if(e.target.value)setFormErrors(f=>({...f,quantity:undefined}))}} style={{borderColor:formErrors.quantity?'var(--red)':undefined}}/>
+                  {formErrors.quantity&&<div style={{fontSize:11,color:'var(--red)',marginTop:2}}>{formErrors.quantity}</div>}
                 </div>
-              )}
-
-              {/* Contacto técnico */}
-              {selected.technical_contact_name && (
-                <div style={{marginBottom:14,padding:'12px',background:'var(--blue-light)',borderRadius:'var(--radius)',border:'0.5px solid rgba(24,95,165,0.2)'}}>
-                  <div style={{fontSize:11,fontWeight:600,color:'var(--blue)',marginBottom:8}}>👤 CONTACTO TÉCNICO</div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',fontSize:13}}>
-                    <div><span style={{color:'var(--text-muted)'}}>Nome: </span><strong>{selected.technical_contact_name}</strong></div>
-                    {selected.technical_contact_company && <div><span style={{color:'var(--text-muted)'}}>Empresa: </span><strong>{selected.technical_contact_company}</strong></div>}
-                    {selected.technical_contact_phone && (
-                      <div style={{gridColumn:'1/-1'}}>
-                        <span style={{color:'var(--text-muted)'}}>Telefone: </span>
-                        <a href={`tel:${selected.technical_contact_phone}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}>
-                          <i className="ti ti-phone" style={{marginRight:4}}/>{selected.technical_contact_phone}
-                        </a>
-                      </div>
-                    )}
-                    {selected.technical_contact_email && (
-                      <div style={{gridColumn:'1/-1'}}>
-                        <span style={{color:'var(--text-muted)'}}>Email: </span>
-                        <a href={`mailto:${selected.technical_contact_email}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}>
-                          <i className="ti ti-mail" style={{marginRight:4}}/>{selected.technical_contact_email}
-                        </a>
-                      </div>
-                    )}
-                    {selected.technical_contact_notes && <div style={{gridColumn:'1/-1',fontSize:12,color:'var(--text-muted)',fontStyle:'italic'}}>{selected.technical_contact_notes}</div>}
-                  </div>
+                <div className="form-group"><label>Unidade</label>
+                  <select value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}>
+                    {['un.','m','m²','m³','kg','t','lt','cx','rolo','vara','bte','saco','pct'].map(u=><option key={u}>{u}</option>)}
+                  </select>
                 </div>
-              )}
-
-              <div style={{display:'flex',gap:8,marginTop:8}}>
-                <button className="btn btn-primary" style={{flex:1,justifyContent:'center'}} onClick={()=>openEdit(selected)}>
-                  <i className="ti ti-edit"/>Editar requisição
-                </button>
+                <div className="form-group"><label>Prioridade</label>
+                  <select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>
+                    {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Data necessária</label><input type="date" value={form.needed_by} onChange={e=>setForm({...form,needed_by:e.target.value})}/></div>
+                <div className="form-group"><label>Mín. fornecedores</label>
+                  <select value={form.min_quotes} onChange={e=>setForm({...form,min_quotes:e.target.value})}>
+                    {['1','2','3','4'].map(n=><option key={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div className="form-group full"><label>Especificações / Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Normas técnicas, medidas..."/></div>
+                <div className="form-group full"><label>Imagem de referência</label>
+                  <input type="file" accept="image/*" ref={fileRef} onChange={handleImageChange} style={{fontSize:12}}/>
+                  {imagePreview&&<img src={imagePreview} alt="preview" style={{marginTop:8,maxWidth:'100%',maxHeight:150,borderRadius:'var(--radius)',objectFit:'contain'}}/>}
+                </div>
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Local de entrega</div>
+              <div className="form-grid" style={{marginBottom:16}}>
+                <div className="form-group full">
+                  <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
+                    {['Obra (morada da obra)','Armazém','Outro endereço','Entrega intermédia (2+ transportes)'].map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                {form.delivery_type!=='Obra (morada da obra)'&&<>
+                  <div className="form-group full"><label>Morada</label><input value={form.delivery_address} onChange={e=>setForm({...form,delivery_address:e.target.value})}/></div>
+                  <div className="form-group"><label>Cidade</label><input value={form.delivery_city} onChange={e=>setForm({...form,delivery_city:e.target.value})}/></div>
+                </>}
+                <div className="form-group full"><label>Instruções de entrega</label><input value={form.delivery_notes} onChange={e=>setForm({...form,delivery_notes:e.target.value})} placeholder="Ex: Ligar antes..."/></div>
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Contacto técnico</div>
+              <div className="form-grid" style={{marginBottom:20}}>
+                <div className="form-group"><label>Nome</label><input value={form.technical_contact_name} onChange={e=>setForm({...form,technical_contact_name:e.target.value})}/></div>
+                <div className="form-group"><label>Empresa</label><input value={form.technical_contact_company} onChange={e=>setForm({...form,technical_contact_company:e.target.value})}/></div>
+                <div className="form-group"><label>Telefone</label><input value={form.technical_contact_phone} onChange={e=>setForm({...form,technical_contact_phone:e.target.value})}/></div>
+                <div className="form-group"><label>Email</label><input type="email" value={form.technical_contact_email} onChange={e=>setForm({...form,technical_contact_email:e.target.value})}/></div>
+                <div className="form-group full"><label>Notas</label><input value={form.technical_contact_notes} onChange={e=>setForm({...form,technical_contact_notes:e.target.value})}/></div>
+              </div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:12,borderTop:'1px solid var(--border)'}}>
+                <button className="btn" onClick={()=>{setShowForm(false);setEditReq(null);setFormErrors({})}}>Cancelar</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editReq?'Guardar alterações':'Criar Requisição'}</button>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          {selected&&!showForm&&(
+            <div style={{padding:20}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+                    <span style={{fontSize:12,fontFamily:'monospace',color:'var(--text-muted)',fontWeight:600}}>{selected.ref_number}</span>
+                    {selected.client_ref&&<span style={{fontSize:11,background:'var(--amber-light)',color:'#633806',padding:'2px 6px',borderRadius:10,fontWeight:600}}>📎 {selected.client_ref}</span>}
+                    <span className={`badge ${STATUS_CL[selected.status]||''}`}>{selected.status}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:PRIO_COLOR[selected.priority],background:PRIO_BG[selected.priority],padding:'2px 6px',borderRadius:10}}>Prioridade {selected.priority}</span>
+                    {selected.affaires&&<span style={{fontSize:11,color:'var(--blue)',background:'var(--blue-light)',padding:'2px 6px',borderRadius:10}}><i className="ti ti-building" style={{marginRight:3}}/>{selected.affaires.ref_number} — {selected.affaires.name}</span>}
+                  </div>
+                  <div style={{fontSize:18,fontWeight:700,lineHeight:1.3,marginBottom:4}}>{selected.description}</div>
+                  {(selected.product_brand||selected.product_ref)&&(
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>
+                      {selected.product_brand&&<strong style={{color:'var(--text)'}}>{selected.product_brand}</strong>}
+                      {selected.product_ref&&<span style={{marginLeft:6,fontFamily:'monospace',background:'var(--bg-card)',padding:'1px 5px',borderRadius:4,fontSize:11}}>#{selected.product_ref}</span>}
+                      {selected.product_url&&<a href={selected.product_url} target="_blank" rel="noopener noreferrer" style={{marginLeft:8,color:'var(--blue)',fontSize:11,textDecoration:'none'}}><i className="ti ti-external-link" style={{marginRight:2}}/>Ver produto</a>}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  <button className="btn btn-sm" onClick={()=>openEdit(selected)}><i className="ti ti-edit"/>Editar</button>
+                  {isAdmin&&<button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(selected.id)}><i className="ti ti-trash"/></button>}
+                  <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+                {[['Quantidade',`${selected.quantity} ${selected.unit}`],['Mín. fornecedores',selected.min_quotes],['Data necessária',selected.needed_by?new Date(selected.needed_by).toLocaleDateString('pt-PT'):'—']].map(([l,v])=>(
+                  <div key={l} style={{background:'var(--bg-card)',borderRadius:'var(--radius)',padding:'10px 12px',border:'0.5px solid var(--border)'}}>
+                    <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',marginBottom:4}}>{l}</div>
+                    <div style={{fontSize:15,fontWeight:700}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:12}}>Criado por <strong>{selected.employees?.full_name||selected.employees?.emp_code||'—'}</strong> em {new Date(selected.created_at).toLocaleDateString('pt-PT')}</div>
+              {selected.notes&&<div style={{marginBottom:12,padding:'10px 12px',background:'var(--bg-card)',borderRadius:'var(--radius)',borderLeft:'3px solid var(--blue)',border:'0.5px solid var(--border)'}}>
+                <div style={{fontSize:10,fontWeight:600,color:'var(--blue)',marginBottom:4}}>📋 ESPECIFICAÇÕES</div>
+                <div style={{fontSize:13,whiteSpace:'pre-wrap'}}>{selected.notes}</div>
+              </div>}
+              {selected.delivery_type&&<div style={{marginBottom:12,padding:'10px 12px',background:'var(--bg-card)',borderRadius:'var(--radius)',borderLeft:'3px solid var(--green)',border:'0.5px solid var(--border)'}}>
+                <div style={{fontSize:10,fontWeight:600,color:'var(--green)',marginBottom:4}}>🚚 LOCAL DE ENTREGA</div>
+                <div style={{fontSize:13,fontWeight:500}}>{selected.delivery_type}{selected.delivery_type?.includes('intermédia')&&<span style={{marginLeft:8,fontSize:11,background:'var(--amber)',color:'white',padding:'1px 6px',borderRadius:10}}>⚠️ 2+ transportes</span>}</div>
+                {selected.delivery_address&&<div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{selected.delivery_address}{selected.delivery_city?`, ${selected.delivery_city}`:''}</div>}
+                {selected.delivery_notes&&<div style={{fontSize:12,color:'var(--text-muted)',fontStyle:'italic',marginTop:2}}>{selected.delivery_notes}</div>}
+              </div>}
+              {selected.image_url&&<div style={{marginBottom:12}}>
+                <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>🖼️ IMAGEM DE REFERÊNCIA</div>
+                <ImageFromStorage path={selected.image_url}/>
+              </div>}
+              {selected.technical_contact_name&&<div style={{padding:'12px',background:'var(--blue-light)',borderRadius:'var(--radius)',border:'0.5px solid rgba(24,95,165,0.2)'}}>
+                <div style={{fontSize:10,fontWeight:600,color:'var(--blue)',marginBottom:8}}>👤 CONTACTO TÉCNICO</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',fontSize:13}}>
+                  <div><span style={{color:'var(--text-muted)'}}>Nome: </span><strong>{selected.technical_contact_name}</strong></div>
+                  {selected.technical_contact_company&&<div><span style={{color:'var(--text-muted)'}}>Empresa: </span><strong>{selected.technical_contact_company}</strong></div>}
+                  {selected.technical_contact_phone&&<div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Tel: </span><a href={`tel:${selected.technical_contact_phone}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-phone" style={{marginRight:4}}/>{selected.technical_contact_phone}</a></div>}
+                  {selected.technical_contact_email&&<div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Email: </span><a href={`mailto:${selected.technical_contact_email}`} style={{fontWeight:600,color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-mail" style={{marginRight:4}}/>{selected.technical_contact_email}</a></div>}
+                  {selected.technical_contact_notes&&<div style={{gridColumn:'1/-1',fontSize:12,color:'var(--text-muted)',fontStyle:'italic'}}>{selected.technical_contact_notes}</div>}
+                </div>
+              </div>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
