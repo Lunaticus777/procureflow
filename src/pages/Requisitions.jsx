@@ -62,6 +62,62 @@ export default function Requisitions() {
 
   useEffect(() => { load() }, [])
 
+  const exportExcel = (affaireId) => {
+    const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
+    const affaireName = affaires.find(a => a.id === affaireId)?.name || 'Todas'
+    const csvRows = [
+      ['Ref.','Ref.Cliente','Descrição','Marca','Ref.Técnica','Qtd.','Unid.','Prioridade','Estado','Obra','Data necessária','Local entrega','Contacto técnico','Telefone'],
+      ...data.map(r => [
+        r.ref_number, r.client_ref||'', r.description, r.product_brand||'', r.product_ref||'',
+        r.quantity, r.unit, r.priority, r.status,
+        r.affaires?.name||'', r.needed_by||'', r.delivery_type||'',
+        r.technical_contact_name||'', r.technical_contact_phone||''
+      ])
+    ]
+    const csv = csvRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `Requisicoes_${affaireName.replace(/\s/g,'_')}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
+  const exportPDF = (affaireId) => {
+    const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
+    const affaireName = affaires.find(a => a.id === affaireId)?.name || 'Todas as obras'
+    const win = window.open('', '_blank')
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Requisições — ${affaireName}</title>
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #222; }
+      h1 { font-size: 16px; margin-bottom: 4px; } .sub { color: #666; font-size: 11px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; }
+      th { background: #f0f0f0; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; border: 0.5px solid #ccc; }
+      td { padding: 6px 8px; border: 0.5px solid #e0e0e0; vertical-align: top; }
+      tr:nth-child(even) { background: #fafafa; }
+      .badge { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+      .pend { background: #e8f4fd; color: #1a6fa0; } .aprov { background: #eaf3de; color: #3b6d11; }
+      .alta { background: #fcebeb; color: #a32d2d; } .media { background: #faeeda; color: #633806; }
+    </style></head><body>
+    <h1>Requisições — ${affaireName}</h1>
+    <div class="sub">Exportado em ${new Date().toLocaleDateString('pt-PT')} · ${data.length} requisição(ões)</div>
+    <table><thead><tr><th>Ref.</th><th>Ref.Cli.</th><th>Descrição</th><th>Marca / Ref.Técnica</th><th>Qtd.</th><th>Prioridade</th><th>Estado</th><th>Entrega</th><th>Contacto técnico</th></tr></thead><tbody>
+    ${data.map(r => `<tr>
+      <td style="font-family:monospace">${r.ref_number}</td>
+      <td>${r.client_ref||'—'}</td>
+      <td><strong>${r.description}</strong>${r.notes?`<br><small style="color:#666">${r.notes.slice(0,80)}</small>`:''}</td>
+      <td>${r.product_brand||''}${r.product_ref?` · #${r.product_ref}`:''}</td>
+      <td>${r.quantity} ${r.unit}</td>
+      <td><span class="badge ${r.priority==='Alta'?'alta':'media'}">${r.priority}</span></td>
+      <td><span class="badge pend">${r.status}</span></td>
+      <td>${r.delivery_type||'—'}${r.delivery_city?`<br>${r.delivery_city}`:''}</td>
+      <td>${r.technical_contact_name||'—'}${r.technical_contact_phone?`<br><small>${r.technical_contact_phone}</small>`:''}</td>
+    </tr>`).join('')}
+    </tbody></table></body></html>`
+    win.document.write(html)
+    win.document.close()
+    setTimeout(() => win.print(), 500)
+  }
+
   const openEdit = (r) => {
     setEditReq(r)
     setForm({
