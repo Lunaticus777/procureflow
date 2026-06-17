@@ -223,10 +223,7 @@ export default function Requisitions() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Requisições ({filtered.length}{filtered.length!==rows.length?` / ${rows.length}`:''})</span>
-              <div style={{display:'flex',gap:6}}>
-                <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')} title="Vista cartões"><i className="ti ti-layout-grid"/></button>
-                <button className={`btn btn-sm ${viewMode==='list'?'btn-primary':''}`} onClick={()=>setViewMode('list')} title="Vista lista"><i className="ti ti-list"/></button>
-              </div>
+
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
               <div style={{display:'flex',gap:3}}>
                 <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')} title="Cartões"><i className="ti ti-layout-grid"/></button>
