@@ -146,30 +146,74 @@ export default function Quotations() {
     return matchSearch && matchAffaire
   })
 
+  const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
+
   return (
-    <div style={{display:'flex',gap:16,alignItems:'flex-start',height:'calc(100vh - 140px)'}}>
-      {/* Lista de requisições */}
-      <div style={{width:280,flexShrink:0,overflowY:'auto',height:'100%'}}>
-        <div className="card">
-          <div className="card-header"><span className="card-title">Requisições</span></div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{width:'100%',marginBottom:10,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+    <div style={{display:'flex',height:'calc(100vh - 56px)',overflow:'hidden'}}>
+
+      {/* LISTA ESQUERDA */}
+      <div style={{width:selReq?'46%':'100%',flexShrink:0,display:'flex',flexDirection:'column',borderRight:selReq?'1px solid var(--border)':'none',transition:'width 0.2s'}}>
+
+        {/* Toolbar */}
+        <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--bg-card)',flexShrink:0}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+            <div style={{position:'relative',flex:1}}>
+              <i className="ti ti-search" style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)',fontSize:13,pointerEvents:'none'}}/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pesquisar — descrição, ref., obra, estado..." style={{width:'100%',border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px 7px 30px',fontSize:13,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}/>
+              {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13}}>✕</button>}
+            </div>
+            <span style={{fontSize:11,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{filteredReqs.length} / {requisitions.length}</span>
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+            <select value={filterAffaire} onChange={e=>setFilterAffaire(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Todas as obras</option>
+              {affaires.map(a=><option key={a.id} value={a.id}>{a.ref_number} — {a.name}</option>)}
+            </select>
+            <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+              <option value="">Todos os estados</option>
+              {['Pendente','Em cotação','Aprovado','Encomendado'].map(s=><option key={s}>{s}</option>)}
+            </select>
+            {(search||filterAffaire||filterStatus)&&<button className="btn btn-sm" onClick={()=>{setSearch('');setFilterAffaire('');setFilterStatus('')}} style={{fontSize:11}}>✕ Limpar</button>}
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div style={{flex:1,overflowY:'auto'}}>
           {filteredReqs.length===0
             ? <div className="empty">Sem requisições.</div>
-            : filteredReqs.map(r=>(
-                <div key={r.id} onClick={()=>selectReq(r)}
-                  style={{padding:'10px',marginBottom:6,borderRadius:'var(--radius)',border:`1px solid ${selReq?.id===r.id?'var(--blue)':'var(--border)'}`,background:selReq?.id===r.id?'var(--blue-light)':'var(--bg-card)',cursor:'pointer'}}>
-                  <div style={{fontWeight:500,fontSize:12,color:'var(--text-muted)',marginBottom:2}}>{r.ref_number} {r.affaires&&<span style={{color:'var(--blue)'}}>· {r.affaires.ref_number}</span>}</div>
-                  <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
-                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{r.quantity} {r.unit} · {r.employees?.emp_code||'—'}</div>
-                  <div style={{marginTop:4}}><span className={`badge ${{'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved'}[r.status]||''}`} style={{fontSize:10}}>{r.status}</span></div>
-                </div>
-              ))
+            : <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead style={{position:'sticky',top:0,background:'var(--bg-card)',zIndex:1}}>
+                  <tr style={{borderBottom:'1px solid var(--border)'}}>
+                    {['Ref.','Descrição','Obra','Qtd.','Estado','Cotações',''].map(h=>(
+                      <th key={h} style={{padding:'7px 10px',textAlign:'left',fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',whiteSpace:'nowrap'}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReqs.map(r=>(
+                    <tr key={r.id} onClick={()=>selectReq(r)}
+                      style={{cursor:'pointer',borderBottom:'0.5px solid var(--border)',background:selReq?.id===r.id?'var(--blue-light)':'',borderLeft:`3px solid ${selReq?.id===r.id?'var(--blue)':r.status==='Aprovado'?'var(--green)':r.status==='Em cotação'?'var(--amber)':'transparent'}`}}>
+                      <td style={{padding:'8px 10px',fontFamily:'monospace',fontSize:11,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{r.ref_number}</td>
+                      <td style={{padding:'8px 10px',maxWidth:200}}>
+                        <div style={{fontWeight:500,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
+                        {r.client_ref&&<div style={{fontSize:10,color:'#633806',background:'var(--amber-light)',padding:'1px 5px',borderRadius:8,display:'inline-block',marginTop:2}}>{r.client_ref}</div>}
+                      </td>
+                      <td style={{padding:'8px 8px',fontSize:11,color:'var(--blue)',whiteSpace:'nowrap'}}>{r.affaires?.ref_number||'—'}</td>
+                      <td style={{padding:'8px 8px',fontSize:12,whiteSpace:'nowrap'}}>{r.quantity} {r.unit}</td>
+                      <td style={{padding:'8px 8px'}}><span className={`badge ${STATUS_CL[r.status]||''}`} style={{fontSize:10}}>{r.status}</span></td>
+                      <td style={{padding:'8px 8px',fontSize:11,color:'var(--text-muted)'}}>{r.min_quotes||2} mín.</td>
+                      <td style={{padding:'8px 4px'}}><i className="ti ti-chevron-right" style={{color:'var(--text-muted)',fontSize:13}}/></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
           }
         </div>
       </div>
 
-      {/* Painel de cotações */}
+      {/* PAINEL DIREITO */}
       {selReq && (
+        <div style={{flex:1,minWidth:0,overflowY:'auto',background:'var(--bg)'}}>
         <div style={{flex:1,minWidth:0,overflowY:'auto',height:'100%'}}>
           {/* Contexto completo da requisição */}
           <div className="card" style={{marginBottom:12,borderLeft:'3px solid var(--blue)'}}>
@@ -401,6 +445,7 @@ export default function Quotations() {
                 </div>
             }
           </div>
+        </div>
         </div>
       )}
     </div>
