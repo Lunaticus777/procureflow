@@ -28,7 +28,7 @@ export default function SupplierDetail() {
   const categories = [...new Set(suppliers.map(s=>s.category).filter(Boolean))]
 
   const load = async () => {
-    const { data } = await supabase.from('suppliers').select('*').eq('active', true).order('name')
+    const { data } = await supabase.from('suppliers').select('*, created_by_emp:created_by(full_name, emp_code)').eq('active', true).order('name')
     setSuppliers(data || [])
     setLoading(false)
   }
@@ -63,7 +63,8 @@ export default function SupplierDetail() {
       await supabase.from('suppliers').update(form).eq('id', editSupplier.id)
       setSelected({...editSupplier,...form})
     } else {
-      await supabase.from('suppliers').insert(form)
+      const { data: empIns } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+      await supabase.from('suppliers').insert({ ...form, created_by: empIns?.id||null })
     }
     setForm({ name:'', contact_name:'', email:'', phone:'', mobile:'', category:'', payment_terms:'30 dias', address:'', city:'', country:'Portugal', nif:'', notes:'' })
     setShowForm(false); setEditSupplier(null); setSaving(false); load()
