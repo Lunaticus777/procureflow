@@ -29,6 +29,7 @@ export default function Quotations() {
   const [showFollowup, setShowFollowup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [filterAffaire, setFilterAffaire] = useState('')
   const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_price:'', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false, delivery_type:'', delivery_address:'', delivery_city:'' })
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
@@ -36,7 +37,8 @@ export default function Quotations() {
   useEffect(() => {
     async function load() {
       const [{ data: rData }, { data: sData }] = await Promise.all([
-        supabase.from('requisitions').select('*, affaires(name,ref_number), employees(full_name,emp_code)').not('status','eq','Entregue').not('status','eq','Cancelado').order('created_at',{ascending:false}),
+        supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Entregue').not('status','eq','Cancelado').order('created_at',{ascending:false}),
+        supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
         supabase.from('suppliers').select('*').eq('active',true).order('name'),
       ])
       setReqs(rData||[])
@@ -139,7 +141,9 @@ export default function Quotations() {
 
   const filteredReqs = reqs.filter(r => {
     const s = search.toLowerCase()
-    return !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s) || r.affaires?.ref_number?.toLowerCase().includes(s) || r.employees?.emp_code?.toLowerCase().includes(s) || r.status?.toLowerCase().includes(s)
+    const matchSearch = !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s) || r.affaires?.ref_number?.toLowerCase().includes(s) || r.employees?.emp_code?.toLowerCase().includes(s) || r.status?.toLowerCase().includes(s)
+    const matchAffaire = !filterAffaire || r.affaire_id === filterAffaire
+    return matchSearch && matchAffaire
   })
 
   return (

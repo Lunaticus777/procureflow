@@ -44,6 +44,7 @@ export default function Requisitions() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPrio, setFilterPrio] = useState('')
+  const [filterAffaire, setFilterAffaire] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState('cards') // 'cards' | 'list'
@@ -97,7 +98,8 @@ export default function Requisitions() {
     const matchSearch = !s || [r.description, r.ref_number, r.client_ref, r.product_ref, r.product_brand, r.notes, r.affaires?.name, r.affaires?.ref_number, r.employees?.full_name, r.employees?.emp_code].some(f => f?.toLowerCase().includes(s))
     const matchStatus = !filterStatus || r.status === filterStatus
     const matchPrio = !filterPrio || r.priority === filterPrio
-    return matchSearch && matchStatus && matchPrio
+    const matchAffaire = !filterAffaire || r.affaire_id === filterAffaire
+    return matchSearch && matchStatus && matchPrio && matchAffaire
   })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
@@ -254,7 +256,11 @@ export default function Requisitions() {
                 <option value="">Todas prio.</option>
                 {['Alta','Média','Baixa'].map(p=><option key={p}>{p}</option>)}
               </select>
-              {(search||filterStatus||filterPrio) && <button className="btn" onClick={()=>{setSearch('');setFilterStatus('');setFilterPrio('')}}>✕</button>}
+              <select value={filterAffaire} onChange={e=>setFilterAffaire(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
+                <option value="">Todas as obras</option>
+                {affaires.map(a=><option key={a.id} value={a.id}>{a.ref_number} — {a.name}</option>)}
+              </select>
+              {(search||filterStatus||filterPrio||filterAffaire) && <button className="btn" onClick={()=>{setSearch('');setFilterStatus('');setFilterPrio('');setFilterAffaire('')}}>✕ Limpar</button>}
             </div>
 
             {filtered.length === 0
