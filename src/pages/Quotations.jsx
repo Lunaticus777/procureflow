@@ -29,7 +29,7 @@ export default function Quotations() {
   const [showFollowup, setShowFollowup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false, delivery_type:'', delivery_address:'', delivery_city:'' })
+  const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_price:'', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false, delivery_type:'', delivery_address:'', delivery_city:'' })
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
 
@@ -63,7 +63,7 @@ export default function Quotations() {
 
   const openEdit = (q) => {
     setEditQuote(q)
-    setForm({ supplier_id:q.supplier_id, supplier_ref:q.supplier_ref||'', unit_price:q.unit_price, discount_pct:q.discount_pct, delivery_days:q.delivery_days||'', valid_until:q.valid_until||'', payment_terms:q.payment_terms||'30 dias', notes:q.notes||'', vat_rate:q.vat_rate||'23', vat_exempt:q.vat_exempt||false, price_includes_vat:q.price_includes_vat||false, delivery_type:q.delivery_type||'', delivery_address:q.delivery_address||'', delivery_city:q.delivery_city||'' })
+    setForm({ supplier_id:q.supplier_id, supplier_ref:q.supplier_ref||'', unit_price:q.unit_price, discount_pct:q.discount_pct, delivery_price:q.delivery_price||'', delivery_days:q.delivery_days||'', valid_until:q.valid_until||'', payment_terms:q.payment_terms||'30 dias', notes:q.notes||'', vat_rate:q.vat_rate||'23', vat_exempt:q.vat_exempt||false, price_includes_vat:q.price_includes_vat||false, delivery_type:q.delivery_type||'', delivery_address:q.delivery_address||'', delivery_city:q.delivery_city||'' })
     setShowForm(true)
   }
 
@@ -74,7 +74,7 @@ export default function Quotations() {
     if (editQuote) {
       await supabase.from('quotations').update({
         supplier_id: form.supplier_id, supplier_ref: form.supplier_ref, unit_price: parseFloat(form.unit_price),
-        discount_pct: parseFloat(form.discount_pct)||0, delivery_days: parseInt(form.delivery_days)||null,
+        discount_pct: parseFloat(form.discount_pct)||0, delivery_price: form.delivery_price?parseFloat(form.delivery_price):null, delivery_days: parseInt(form.delivery_days)||null,
         valid_until: form.valid_until||null, payment_terms: form.payment_terms, notes: form.notes,
         vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
         delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null, delivery_city: form.delivery_city||null,
@@ -83,7 +83,7 @@ export default function Quotations() {
       await supabase.from('quotations').insert({
         requisition_id: selReq.id, supplier_id: form.supplier_id, created_by: emp?.id||null,
         supplier_ref: form.supplier_ref, unit_price: parseFloat(form.unit_price),
-        discount_pct: parseFloat(form.discount_pct)||0, delivery_days: parseInt(form.delivery_days)||null,
+        discount_pct: parseFloat(form.discount_pct)||0, delivery_price: form.delivery_price?parseFloat(form.delivery_price):null, delivery_days: parseInt(form.delivery_days)||null,
         valid_until: form.valid_until||null, payment_terms: form.payment_terms, notes: form.notes,
         vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
         delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null, delivery_city: form.delivery_city||null,
@@ -215,6 +215,7 @@ export default function Quotations() {
                 <div className="form-group"><label>Preço unitário (€) *</label><input type="number" step="0.01" value={form.unit_price} onChange={e=>setForm({...form,unit_price:e.target.value})} /></div>
                 <div className="form-group"><label>Desconto (%)</label><input type="number" value={form.discount_pct} onChange={e=>setForm({...form,discount_pct:e.target.value})} /></div>
                 <div className="form-group"><label>Prazo entrega (dias)</label><input type="number" value={form.delivery_days} onChange={e=>setForm({...form,delivery_days:e.target.value})} /></div>
+                <div className="form-group"><label>Custo de entrega (€) <span style={{fontWeight:400,fontSize:11,color:'var(--text-muted)'}}>opcional</span></label><input type="number" step="0.01" value={form.delivery_price} onChange={e=>setForm({...form,delivery_price:e.target.value})} placeholder="0.00" /></div>
                 <div className="form-group"><label>Validade</label><input type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})} /></div>
                 <div className="form-group"><label>Condições pagamento</label>
                   <select value={form.payment_terms} onChange={e=>setForm({...form,payment_terms:e.target.value})}>
