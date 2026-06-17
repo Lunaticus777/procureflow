@@ -62,152 +62,35 @@ export default function Requisitions() {
 
   useEffect(() => { load() }, [])
 
+
   const exportExcel = (affaireId) => {
     const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
-    const affaireName = affaires.find(a => a.id === affaireId)?.name || 'Todas'
-    const csvRows = [
-      ['Ref.','Ref.Cliente','Descrição','Marca','Ref.Técnica','Qtd.','Unid.','Prioridade','Estado','Obra','Data necessária','Local entrega','Contacto técnico','Telefone'],
-      ...data.map(r => [
-        r.ref_number, r.client_ref||'', r.description, r.product_brand||'', r.product_ref||'',
-        r.quantity, r.unit, r.priority, r.status,
-        r.affaires?.name||'', r.needed_by||'', r.delivery_type||'',
-        r.technical_contact_name||'', r.technical_contact_phone||''
-      ])
-    ]
-    const csv = csvRows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const name = affaires.find(a => a.id === affaireId)?.name || 'Todas'
+    const header = ['Ref.','Ref.Cliente','Descrição','Marca','Ref.Técnica','Qtd.','Unid.','Prioridade','Estado','Obra','Data necessária','Local entrega','Contacto técnico','Telefone']
+    const csvData = [header, ...data.map(r => [r.ref_number,r.client_ref||'',r.description,r.product_brand||'',r.product_ref||'',r.quantity,r.unit,r.priority,r.status,r.affaires?.name||'',r.needed_by||'',r.delivery_type||'',r.technical_contact_name||'',r.technical_contact_phone||''])]
+    const csv = csvData.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')
     const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `Requisicoes_${affaireName.replace(/\s/g,'_')}.csv`
-    a.click(); URL.revokeObjectURL(url)
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = 'Requisicoes_'+name.replace(/ /g,'_')+'.csv'; a.click()
   }
 
   const exportPDF = (affaireId) => {
     const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
-    const affaireName = affaires.find(a => a.id === affaireId)?.name || 'Todas as obras'
+    const name = affaires.find(a => a.id === affaireId)?.name || 'Todas as obras'
     const win = window.open('', '_blank')
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Requisições — ${affaireName}</title>
-    <style>
-      body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #222; }
-      h1 { font-size: 16px; margin-bottom: 4px; } .sub { color: #666; font-size: 11px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; }
-      th { background: #f0f0f0; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; border: 0.5px solid #ccc; }
-      td { padding: 6px 8px; border: 0.5px solid #e0e0e0; vertical-align: top; }
-      tr:nth-child(even) { background: #fafafa; }
-      .badge { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
-      .pend { background: #e8f4fd; color: #1a6fa0; } .aprov { background: #eaf3de; color: #3b6d11; }
-      .alta { background: #fcebeb; color: #a32d2d; } .media { background: #faeeda; color: #633806; }
-    </style></head><body>
-    <h1>Requisições — ${affaireName}</h1>
-    <div class="sub">Exportado em ${new Date().toLocaleDateString('pt-PT')} · ${data.length} requisição(ões)</div>
-    <table><thead><tr><th>Ref.</th><th>Ref.Cli.</th><th>Descrição</th><th>Marca / Ref.Técnica</th><th>Qtd.</th><th>Prioridade</th><th>Estado</th><th>Entrega</th><th>Contacto técnico</th></tr></thead><tbody>
-    ${data.map(r => `<tr>
-      <td style="font-family:monospace">${r.ref_number}</td>
-      <td>${r.client_ref||'—'}</td>
-      <td><strong>${r.description}</strong>${r.notes?`<br><small style="color:#666">${r.notes.slice(0,80)}</small>`:''}</td>
-      <td>${r.product_brand||''}${r.product_ref?` · #${r.product_ref}`:''}</td>
-      <td>${r.quantity} ${r.unit}</td>
-      <td><span class="badge ${r.priority==='Alta'?'alta':'media'}">${r.priority}</span></td>
-      <td><span class="badge pend">${r.status}</span></td>
-      <td>${r.delivery_type||'—'}${r.delivery_city?`<br>${r.delivery_city}`:''}</td>
-      <td>${r.technical_contact_name||'—'}${r.technical_contact_phone?`<br><small>${r.technical_contact_phone}</small>`:''}</td>
-    </tr>`).join('')}
-    </tbody></table></body></html>`
-    win.document.write(html)
+    if (!win) { alert('Active os popups para exportar PDF'); return }
+    const tbody = data.map(r => {
+      const n = r.notes ? '<br><small>'+r.notes.slice(0,80)+'</small>' : ''
+      const b = (r.product_brand||'') + (r.product_ref ? ' #'+r.product_ref : '')
+      const c = r.delivery_city ? '<br>'+r.delivery_city : ''
+      const p = r.technical_contact_phone ? '<br>'+r.technical_contact_phone : ''
+      return '<tr><td>'+r.ref_number+'</td><td>'+(r.client_ref||'—')+'</td><td>'+r.description+n+'</td><td>'+b+'</td><td>'+r.quantity+' '+r.unit+'</td><td>'+r.priority+'</td><td>'+r.status+'</td><td>'+(r.delivery_type||'—')+c+'</td><td>'+(r.technical_contact_name||'—')+p+'</td></tr>'
+    }).join('')
+    const css = '<style>body{font-family:Arial,sans-serif;font-size:11px;margin:20px}h1{font-size:16px;margin-bottom:4px}p{color:#666;font-size:11px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#f0f0f0;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;border:1px solid #ccc}td{padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top}</style>'
+    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Requisicoes</title>'+css+'</head><body><h1>Requisições — '+name+'</h1><p>Exportado em '+new Date().toLocaleDateString('pt-PT')+' · '+data.length+' requisição(ões)</p><table><thead><tr><th>Ref.</th><th>Ref.Cli.</th><th>Descrição</th><th>Marca/Ref.</th><th>Qtd.</th><th>Prio.</th><th>Estado</th><th>Entrega</th><th>Contacto</th></tr></thead><tbody>'+tbody+'</tbody></table></body></html>')
     win.document.close()
-    setTimeout(() => win.print(), 500)
+    setTimeout(function(){ win.print() }, 600)
   }
-
-  const openEdit = (r) => {
-    setEditReq(r)
-    setForm({
-      client_ref:r.client_ref||'', product_ref:r.product_ref||'', product_brand:r.product_brand||'', product_url:r.product_url||'', description:r.description, quantity:r.quantity, unit:r.unit, priority:r.priority,
-      needed_by:r.needed_by||'', min_quotes:r.min_quotes, notes:r.notes||'', affaire_id:r.affaire_id||'',
-      image_url:r.image_url||'',
-      technical_contact_name:r.technical_contact_name||'', technical_contact_phone:r.technical_contact_phone||'',
-      technical_contact_company:r.technical_contact_company||'', technical_contact_notes:r.technical_contact_notes||''
-    })
-    setImagePreview(null)
-    setShowForm(true)
-    setSelected(null)
-  }
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setImagePreview(ev.target.result)
-    reader.readAsDataURL(file)
-    const path = `requisitions/${Date.now()}_${file.name}`
-    const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
-    if (error) { alert('Erro ao carregar imagem: ' + error.message); return }
-    setForm(f => ({ ...f, image_url: path }))
-  }
-
-  const handleSave = async () => {
-    if (!form.description || !form.quantity) return
-    setSaving(true)
-    const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-    const payload = {
-      client_ref: form.client_ref||null,
-      product_ref: form.product_ref||null,
-      product_brand: form.product_brand||null,
-      product_url: form.product_url||null,
-      description: form.description, quantity: parseFloat(form.quantity), unit: form.unit,
-      priority: form.priority, needed_by: form.needed_by||null, min_quotes: parseInt(form.min_quotes),
-      notes: form.notes, affaire_id: form.affaire_id||null, image_url: form.image_url||null,
-      technical_contact_name: form.technical_contact_name||null,
-      technical_contact_phone: form.technical_contact_phone||null,
-      technical_contact_company: form.technical_contact_company||null,
-      technical_contact_email: form.technical_contact_email||null,
-      technical_contact_notes: form.technical_contact_notes||null,
-      delivery_type: form.delivery_type||'Obra',
-      delivery_address: form.delivery_address||null,
-      delivery_city: form.delivery_city||null,
-      delivery_notes: form.delivery_notes||null,
-    }
-    if (editReq) {
-      const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
-      if (error) { alert('Erro: ' + error.message); setSaving(false); return }
-      await logActivity({ empId: emp?.id, action: 'updated', entityType: 'requisition', entityRef: editReq.ref_number, description: `actualizou requisição ${editReq.ref_number} — ${form.description.slice(0,50)}` })
-    } else {
-      const { count: totalCount } = await supabase.from('requisitions').select('*', { count: 'exact', head: true })
-      const refNum = `REQ-${String((totalCount||0) + 1).padStart(3,'0')}`
-      const { error } = await supabase.from('requisitions').insert({
-        ...payload, ref_number: refNum, created_by: emp?.id||null, status: 'Pendente'
-      })
-      if (!error) {
-        await logActivity({ empId: emp?.id, action: 'created', entityType: 'requisition', entityRef: refNum, description: `criou requisição ${refNum} — ${form.description.slice(0,50)}`, affaireId: form.affaire_id||null })
-      }
-      if (error) {
-        if (error.code === '23505') {
-          await supabase.from('requisitions').insert({
-            ...payload, ref_number: `REQ-${Date.now().toString().slice(-6)}`, created_by: emp?.id||null, status: 'Pendente'
-          })
-        } else { alert('Erro: ' + error.message); setSaving(false); return }
-      }
-    }
-    setForm(EMPTY_FORM); setShowForm(false); setEditReq(null); setSaving(false); load()
-  }
-
-  const handleDelete = async (id) => {
-    if (!confirm('Tem a certeza que quer apagar esta requisição?')) return
-    const req = rows.find(r => r.id === id)
-    const { error } = await supabase.from('requisitions').delete().eq('id', id)
-    if (error) { alert('Erro ao apagar: ' + error.message); return }
-    const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-    await logActivity({ empId: emp?.id, action: 'deleted', entityType: 'requisition', entityRef: req?.ref_number, description: `apagou requisição ${req?.ref_number} — ${req?.description?.slice(0,50)}` })
-    if (selected?.id === id) setSelected(null)
-    load()
-  }
-
-  const filtered = rows.filter(r => {
-    const s = search.toLowerCase()
-    const matchSearch = !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s)
-    const matchStatus = !filterStatus || r.status === filterStatus
-    const matchPrio = !filterPrio || r.priority === filterPrio
-    return matchSearch && matchStatus && matchPrio
-  })
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -336,7 +219,24 @@ export default function Requisitions() {
                 <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')} title="Vista cartões"><i className="ti ti-layout-grid"/></button>
                 <button className={`btn btn-sm ${viewMode==='list'?'btn-primary':''}`} onClick={()=>setViewMode('list')} title="Vista lista"><i className="ti ti-list"/></button>
               </div>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <div style={{display:'flex',gap:3}}>
+                <button className={`btn btn-sm ${viewMode==='cards'?'btn-primary':''}`} onClick={()=>setViewMode('cards')} title="Cartões"><i className="ti ti-layout-grid"/></button>
+                <button className={`btn btn-sm ${viewMode==='list'?'btn-primary':''}`} onClick={()=>setViewMode('list')} title="Lista"><i className="ti ti-list"/></button>
+              </div>
+              <div style={{position:'relative'}} onMouseEnter={e=>e.currentTarget.querySelector('.expmenu').style.display='block'} onMouseLeave={e=>e.currentTarget.querySelector('.expmenu').style.display='none'}>
+                <button className="btn btn-sm" style={{display:'flex',alignItems:'center',gap:4}}><i className="ti ti-download"/>Exportar</button>
+                <div className="expmenu" style={{display:'none',position:'absolute',top:'100%',right:0,background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:'var(--radius)',boxShadow:'0 4px 12px rgba(0,0,0,0.1)',zIndex:200,minWidth:210,padding:'4px 0'}}>
+                  <div style={{padding:'3px 10px',fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase'}}>Excel / CSV</div>
+                  <div onClick={()=>exportExcel(null)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-spreadsheet"/>Todas</div>
+                  {affaires.map(a=><div key={a.id} onClick={()=>exportExcel(a.id)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-spreadsheet"/>{a.ref_number} — {a.name.slice(0,20)}</div>)}
+                  <div style={{borderTop:'1px solid var(--border)',margin:'3px 0',padding:'3px 10px',fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase'}}>PDF</div>
+                  <div onClick={()=>exportPDF(null)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-type-pdf"/>Todas</div>
+                  {affaires.map(a=><div key={a.id+'p'} onClick={()=>exportPDF(a.id)} style={{padding:'7px 14px',cursor:'pointer',fontSize:12,display:'flex',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'} onMouseLeave={e=>e.currentTarget.style.background=''}><i className="ti ti-file-type-pdf"/>{a.ref_number} — {a.name.slice(0,20)}</div>)}
+                </div>
+              </div>
               <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditReq(null);setForm(EMPTY_FORM);setSelected(null)}}><i className="ti ti-plus"/>Nova</button>
+            </div>
             </div>
 
             <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
