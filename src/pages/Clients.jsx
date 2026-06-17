@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
+import { logActivity } from '../hooks/useActivity'
 
 const COUNTRIES = ['Portugal','Suíça','França','Espanha','Alemanha','Reino Unido','Luxemburgo','Bélgica','Itália','Outro']
 const STATUS_CLASS = { 'Recebido':'badge-pending','Em preparação':'badge-quotation','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled' }
@@ -12,6 +14,7 @@ export default function Clients() {
   const [orders, setOrders] = useState([])
   const [affaires, setAffaires] = useState([])
   const [payments, setPayments] = useState([])
+  const { session } = useAuth()
   const { isAdmin } = useRole()
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('info')
@@ -52,11 +55,14 @@ export default function Clients() {
   const handleSave = async () => {
     if (!form.name) return
     setSaving(true)
+    const { data: empLog } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
     if (editClient) {
       await supabase.from('clients').update(form).eq('id', editClient.id)
+      await logActivity({ empId:empLog?.id, action:'updated', entityType:'client', entityRef:form.name, description:`actualizou cliente ${form.name}` })
       setSelected({...editClient,...form})
     } else {
       await supabase.from('clients').insert(form)
+      await logActivity({ empId:empLog?.id, action:'created', entityType:'client', entityRef:form.name, description:`adicionou cliente ${form.name}` })
     }
     setForm({ name:'', company:'', nif:'', email:'', phone:'', mobile:'', address:'', city:'', postal_code:'', country:'Portugal', notes:'' })
     setShowForm(false); setEditClient(null); setSaving(false); load()
@@ -64,7 +70,9 @@ export default function Clients() {
 
   const handleDelete = async (id) => {
     if (!confirm('Arquivar este cliente?')) return
+    const cli = clients.find(c=>c.id===id)
     await supabase.from('clients').update({ active: false }).eq('id', id)
+    await logActivity({ action:'deleted', entityType:'client', entityRef:cli?.name, description:`arquivou cliente ${cli?.name}` })
     setSelected(null); load()
   }
 

@@ -86,6 +86,7 @@ export default function TransportAgenda() {
         vat_recoverable: form.vat_recoverable ? parseFloat(form.vat_recoverable) : 0,
       }).select().single()
 
+      if (inserted) await logActivity({ action:'created', entityType:'transport', entityRef:form.planned_date, description:`agendou transporte para ${form.planned_date}${form.carrier_id?' com transportador selecionado':''}` })
       if (inserted && form.client_order_id) {
         const order = clientOrders.find(o => o.id === form.client_order_id)
         if (order?.delivery_address) {
@@ -107,6 +108,7 @@ export default function TransportAgenda() {
 
   const handleDelete = async (id) => {
     if (!confirm('Apagar este transporte agendado?')) return
+    const t = agenda.find(a=>a.id===id)
     const { error } = await supabase.from('transport_agenda').delete().eq('id', id)
     if (error) { alert('Erro ao apagar: ' + error.message); return }
     load()

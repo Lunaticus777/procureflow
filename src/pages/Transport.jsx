@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRole } from '../hooks/useRole'
+import { logActivity } from '../hooks/useActivity'
 
 const PT_DISTRICTS = ['Aveiro','Beja','Braga','Bragança','Castelo Branco','Coimbra','Évora','Faro','Guarda','Leiria','Lisboa','Portalegre','Porto','Santarém','Setúbal','Viana do Castelo','Vila Real','Viseu','Açores','Madeira']
 const EU_COUNTRIES = ['Portugal','Espanha','França','Alemanha','Itália','Bélgica','Países Baixos','Luxemburgo','Suíça','Reino Unido','Irlanda','Áustria','Polónia','Outro']
@@ -61,10 +62,12 @@ export default function Transport() {
     const payload = { ...form, max_load_kg: form.max_load_kg ? parseFloat(form.max_load_kg) : null, base_price: form.base_price ? parseFloat(form.base_price) : null, price_per_km: form.price_per_km ? parseFloat(form.price_per_km) : null, price_per_kg: form.price_per_kg ? parseFloat(form.price_per_kg) : null }
     if (editCarrier) {
       await supabase.from('carriers').update(payload).eq('id', editCarrier.id)
+      await logActivity({ action:'updated', entityType:'transport', entityRef:editCarrier.name, description:`actualizou transportador ${editCarrier.name}` })
       setSelected({...editCarrier,...payload})
     } else {
       const { error } = await supabase.from('carriers').insert(payload)
       if (error) { alert('Erro: ' + error.message); setSaving(false); return }
+      await logActivity({ action:'created', entityType:'transport', entityRef:form.name, description:`adicionou transportador ${form.name}` })
     }
     setForm(EMPTY_FORM)
     setShowForm(false); setEditCarrier(null); setSaving(false); load()
@@ -72,7 +75,9 @@ export default function Transport() {
 
   const handleDelete = async (id) => {
     if (!confirm('Arquivar este transportador?')) return
+    const carrier = carriers.find(c=>c.id===id)
     await supabase.from('carriers').update({ active: false }).eq('id', id)
+    await logActivity({ action:'deleted', entityType:'transport', entityRef:carrier?.name, description:`arquivou transportador ${carrier?.name}` })
     setSelected(null); load()
   }
 
