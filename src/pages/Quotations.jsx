@@ -162,7 +162,7 @@ export default function Quotations() {
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pesquisar — descrição, ref., obra, estado..." style={{width:'100%',border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'7px 10px 7px 30px',fontSize:13,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}/>
               {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13}}>✕</button>}
             </div>
-            <span style={{fontSize:11,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{filteredReqs.length} / {requisitions.length}</span>
+            <span style={{fontSize:11,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{filteredReqs.length} / {reqs.length}</span>
           </div>
           <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
             <select value={filterAffaire} onChange={e=>setFilterAffaire(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
