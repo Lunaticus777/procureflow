@@ -29,22 +29,24 @@ export default function Quotations() {
   const [showFollowup, setShowFollowup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [affaires, setAffaires] = useState([])
   const [filterAffaire, setFilterAffaire] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [form, setForm] = useState({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_price:'', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'', vat_rate:'23', vat_exempt:false, price_includes_vat:false, delivery_type:'', delivery_address:'', delivery_city:'' })
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
-      const [{ data: rData }, { data: sData }] = await Promise.all([
+      const [{ data: rData }, { data: affData }, { data: sData }] = await Promise.all([
         supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Entregue').not('status','eq','Cancelado').order('created_at',{ascending:false}),
         supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
         supabase.from('suppliers').select('*').eq('active',true).order('name'),
       ])
       setReqs(rData||[])
+      setAffaires(affData||[])
       setSuppliers(sData||[])
-      if (rData?.[0]) { setSelReq(rData[0]); loadQuotes(rData[0].id) }
-      else setLoading(false)
+      setLoading(false)
     }
     load()
   }, [])
@@ -143,7 +145,8 @@ export default function Quotations() {
     const s = search.toLowerCase()
     const matchSearch = !s || r.description?.toLowerCase().includes(s) || r.ref_number?.toLowerCase().includes(s) || r.affaires?.name?.toLowerCase().includes(s) || r.affaires?.ref_number?.toLowerCase().includes(s) || r.employees?.emp_code?.toLowerCase().includes(s) || r.status?.toLowerCase().includes(s)
     const matchAffaire = !filterAffaire || r.affaire_id === filterAffaire
-    return matchSearch && matchAffaire
+    const matchStatus = !filterStatus || r.status === filterStatus
+    return matchSearch && matchAffaire && matchStatus
   })
 
   const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
