@@ -64,7 +64,7 @@ export default function Requisitions() {
 
 
   const exportExcel = (affaireId) => {
-    const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
+    const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : rows
     const name = affaires.find(a => a.id === affaireId)?.name || 'Todas'
     const header = ['Ref.','Ref.Cliente','Descrição','Marca','Ref.Técnica','Qtd.','Unid.','Prioridade','Estado','Obra','Data necessária','Local entrega','Contacto técnico','Telefone']
     const csvData = [header, ...data.map(r => [r.ref_number,r.client_ref||'',r.description,r.product_brand||'',r.product_ref||'',r.quantity,r.unit,r.priority,r.status,r.affaires?.name||'',r.needed_by||'',r.delivery_type||'',r.technical_contact_name||'',r.technical_contact_phone||''])]
@@ -75,7 +75,7 @@ export default function Requisitions() {
   }
 
   const exportPDF = (affaireId) => {
-    const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : filtered
+    const data = affaireId ? rows.filter(r => r.affaire_id === affaireId) : rows
     const name = affaires.find(a => a.id === affaireId)?.name || 'Todas as obras'
     const win = window.open('', '_blank')
     if (!win) { alert('Active os popups para exportar PDF'); return }
