@@ -26,7 +26,7 @@ export default function Clients() {
   const [saving, setSaving] = useState(false)
 
   const load = async () => {
-    const { data } = await supabase.from('clients').select('*').eq('active', true).order('name')
+    const { data } = await supabase.from('clients').select('*, created_by_emp:created_by(full_name, emp_code)').eq('active', true).order('name')
     setClients(data || [])
     setLoading(false)
   }
@@ -61,7 +61,8 @@ export default function Clients() {
       await logActivity({ empId:empLog?.id, action:'updated', entityType:'client', entityRef:form.name, description:`actualizou cliente ${form.name}` })
       setSelected({...editClient,...form})
     } else {
-      await supabase.from('clients').insert(form)
+      const { data: empIns } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+      await supabase.from('clients').insert({ ...form, created_by: empIns?.id||null })
       await logActivity({ empId:empLog?.id, action:'created', entityType:'client', entityRef:form.name, description:`adicionou cliente ${form.name}` })
     }
     setForm({ name:'', company:'', nif:'', email:'', phone:'', mobile:'', address:'', city:'', postal_code:'', country:'Portugal', notes:'' })

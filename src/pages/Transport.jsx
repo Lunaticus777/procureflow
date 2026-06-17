@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
 import { logActivity } from '../hooks/useActivity'
 
@@ -7,6 +8,7 @@ const PT_DISTRICTS = ['Aveiro','Beja','Braga','Bragança','Castelo Branco','Coim
 const EU_COUNTRIES = ['Portugal','Espanha','França','Alemanha','Itália','Bélgica','Países Baixos','Luxemburgo','Suíça','Reino Unido','Irlanda','Áustria','Polónia','Outro']
 
 export default function Transport() {
+  const { session } = useAuth()
   const { isAdmin } = useRole()
   const [carriers, setCarriers] = useState([])
   const [selected, setSelected] = useState(null)
@@ -30,7 +32,7 @@ export default function Transport() {
   const today = new Date().toISOString().split('T')[0]
 
   const load = async () => {
-    const { data } = await supabase.from('carriers').select('*').eq('active', true).order('name')
+    const { data } = await supabase.from('carriers').select('*, created_by_emp:created_by(full_name, emp_code)').eq('active', true).order('name')
     setCarriers(data || [])
     setLoading(false)
   }
@@ -65,7 +67,8 @@ export default function Transport() {
       await logActivity({ action:'updated', entityType:'transport', entityRef:editCarrier.name, description:`actualizou transportador ${editCarrier.name}` })
       setSelected({...editCarrier,...payload})
     } else {
-      const { error } = await supabase.from('carriers').insert(payload)
+      const { data: empIns } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+      const { error } = await supabase.from('carriers').insert({ ...payload, created_by: empIns?.id||null })
       if (error) { alert('Erro: ' + error.message); setSaving(false); return }
       await logActivity({ action:'created', entityType:'transport', entityRef:form.name, description:`adicionou transportador ${form.name}` })
     }
@@ -285,6 +288,7 @@ export default function Transport() {
                 </div>
               )}
 
+              {selected.created_by_emp && <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:8}}>Criado por <strong>{selected.created_by_emp.full_name}</strong></div>}
               {selected.notes && <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',fontSize:12,borderLeft:'3px solid var(--amber)',marginBottom:10}}>{selected.notes}</div>}
             </div>
 
