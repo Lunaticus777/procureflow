@@ -217,9 +217,9 @@ export default function Requisitions() {
         </div>
       )}
 
-      <div style={{display:'flex',gap:12}}>
+      <div style={{display:'flex',gap:0,height:'calc(100vh - 130px)',overflow:'hidden'}}>
         {/* Lista */}
-        <div style={{flex:'0 0 420px',minWidth:0}}>
+        <div style={{width:selected?'55%':'100%',flexShrink:0,display:'flex',flexDirection:'column',transition:'width 0.2s',borderRight:selected?'1px solid var(--border)':'none',overflowY:'auto'}}>
           <div className="card">
             <div className="card-header">
               <span className="card-title">Requisições ({filtered.length}{filtered.length!==rows.length?` / ${rows.length}`:''})</span>
@@ -322,8 +322,8 @@ export default function Requisitions() {
 
         {/* Detalhe */}
         {selected && (
-          <div style={{flex:1,minWidth:0,position:'sticky',top:16,maxHeight:'calc(100vh - 80px)',overflowY:'auto'}}>
-            <div className="card" style={{position:'sticky',top:0}}>
+          <div style={{flex:1,minWidth:0,overflowY:'auto',padding:'0 4px'}}>
+            <div className="card">
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
                 <div>
                   <div style={{fontSize:12,color:'var(--text-muted)',fontWeight:500,marginBottom:4}}>{selected.ref_number}{selected.client_ref && <span style={{marginLeft:8,background:'var(--amber-light)',color:'#633806',padding:'1px 6px',borderRadius:10,fontWeight:600}}>Ref. cliente: {selected.client_ref}</span>} · criado por <strong>{selected.employees?.emp_code||'—'}</strong> {selected.employees?.full_name||''}</div>
