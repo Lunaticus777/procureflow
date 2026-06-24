@@ -271,8 +271,8 @@ export default function Quotations() {
 
   const generatePDF = () => {
     const cfg = proposalConfig
-    const pdfLang = cfg.lang||'pt'
-    const isFr = pdfLang === 'fr'
+    const isFr = (cfg.lang||'pt') === 'fr'
+    const locale = isFr ? 'fr-FR' : 'pt-PT'
     const PL = isFr ? {
       title:'Offre de Fourniture', date:'Date', ref:'Réf.', work:'Chantier', qty:'Quantité',
       clientRef:'Réf. client', specs:'Spécifications', supplier:'Fournisseur', delay:'Délai',
@@ -280,8 +280,8 @@ export default function Quotations() {
       total:'Total', vatCol:'Total TVA', vatNote:'TVA', bestPrice:'Meilleur prix',
       noDelivery:'Incluse', marginNote:'Majoration de', marginSuffix:'% appliquée.',
       footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
-      carrier:'Transporteur', forfait:'Forfait transport', summary:'Récapitulatif',
-      summaryBest:'Option retenue', validity:'Validité', dateReq:'Date requise'
+      forfait:'Forfait transport', summary:'Récapitulatif', summaryBest:'Option retenue',
+      validity:'Validité', dateReq:'Date requise'
     } : {
       title:'Proposta de Fornecimento', date:'Data', ref:'Ref.', work:'Obra', qty:'Quantidade',
       clientRef:'Ref. cliente', specs:'Especificações', supplier:'Fornecedor', delay:'Prazo',
@@ -289,15 +289,13 @@ export default function Quotations() {
       total:'Total', vatCol:'Total c/IVA', vatNote:'IVA', bestPrice:'Melhor preço',
       noDelivery:'Incluída', marginNote:'Margem de', marginSuffix:'% aplicada.',
       footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
-      carrier:'Transportador', forfait:'Forfait transporte', summary:'Resumo',
-      summaryBest:'Opção seleccionada', validity:'Validade', dateReq:'Data necessária'
+      forfait:'Forfait transporte', summary:'Resumo', summaryBest:'Opção seleccionada',
+      validity:'Validade', dateReq:'Data necessária'
     }
 
     const selectedQts = quotes.filter(q => cfg.selectedQuotes.includes(q.id))
     const margin = parseFloat(cfg.margin)||0
-    const locale = isFr ? 'fr-FR' : 'pt-PT'
     const today = new Date().toLocaleDateString(locale)
-
     const rows = selectedQts.map(q => {
       const base = parseFloat(q.final_price||0)
       const delivery = parseFloat(q.delivery_price||0)
@@ -309,93 +307,83 @@ export default function Quotations() {
       const totalWithVat = totalQty * (1 + vat/100)
       return { q, priceWithMargin, delivery, forfait, totalUnit, totalQty, vat, totalWithVat }
     })
-
     const minTotal = rows.length > 0 ? Math.min(...rows.map(r=>r.totalQty)) : 0
     const bestRow = rows.find(r=>r.totalQty===minTotal)
+    const vatThMain = cfg.showVat ? '<th class="r">'+PL.vatCol+'</th>' : ''
 
     const tableRows = rows.map(r => {
       const isBest = r.totalQty === minTotal
-      const delivCell = r.delivery>0 ? ('€ '+r.delivery.toFixed(2)) : r.forfait>0 ? ('€ '+r.forfait.toFixed(2)+' ('+PL.forfait+')') : ('<em>'+PL.noDelivery+'</em>')
-      const vatCell = cfg.showVat ? ('<td class="r">€ '+r.totalWithVat.toFixed(2)+'<br><small>'+PL.vatNote+' '+r.vat+'%</small></td>') : ''
-      return '<tr>'
-        +'<td><b>'+(r.q.suppliers?.name||'—')+'</b>'+(r.q.supplier_ref?'<br><small>'+PL.ref+' '+r.q.supplier_ref+'</small>':'')+(r.q.valid_until?'<br><small>'+PL.validity+': '+new Date(r.q.valid_until).toLocaleDateString(locale)+'</small>':'')+'</td>'
+      const delivCell = r.delivery>0 ? ('€ '+r.delivery.toFixed(2)) : r.forfait>0 ? ('€ '+r.forfait.toFixed(2)+' <em>('+PL.forfait+')</em>') : ('<i>'+PL.noDelivery+'</i>')
+      const vatCell = cfg.showVat ? '<td class="r">€ '+r.totalWithVat.toFixed(2)+'<br><s>'+PL.vatNote+' '+r.vat+'%</s></td>' : ''
+      return '<tr><td><b>'+(r.q.suppliers?.name||'—')+'</b>'
+        +(r.q.supplier_ref?'<br><small>'+PL.ref+' '+r.q.supplier_ref+'</small>':'')
+        +(r.q.valid_until?'<br><small>'+PL.validity+': '+new Date(r.q.valid_until).toLocaleDateString(locale)+'</small>':'')
+        +'</td>'
         +'<td class="c">'+(r.q.delivery_days?r.q.delivery_days+(isFr?' j':' d'):'—')+'</td>'
         +'<td class="c">'+(r.q.payment_terms||'—')+'</td>'
         +'<td class="r">€ '+r.priceWithMargin.toFixed(2)+'</td>'
         +'<td class="r">'+delivCell+'</td>'
         +'<td class="r b">€ '+r.totalUnit.toFixed(2)+'</td>'
-        +'<td class="r '+(isBest?'best':'')+'"><b>€ '+r.totalQty.toFixed(2)+'</b>'+(isBest?'<br><span class="badge">'+PL.bestPrice+'</span>':'')+'</td>'
-        +vatCell
-        +'</tr>'
+        +'<td class="r'+(isBest?' best':'')+'"><b>€ '+r.totalQty.toFixed(2)+'</b>'
+        +(isBest?'<br><span class="bdg">'+PL.bestPrice+'</span>':'')
+        +'</td>'+vatCell+'</tr>'
     }).join('')
 
-    const summaryRows2 = rows.length > 1 ? rows.slice().sort((a,b)=>a.totalQty-b.totalQty).map(r =>
-      '<tr class="'+(r.totalQty===minTotal?'sb':'')+'">'
-      +'<td>'+(r.q.suppliers?.name||'—')+(r.totalQty===minTotal?' <span class="badge">'+PL.bestPrice+'</span>':'')+'</td>'
-      +'<td class="r"><b>€ '+r.totalQty.toFixed(2)+'</b></td>'
-      +(cfg.showVat?'<td class="r">€ '+r.totalWithVat.toFixed(2)+'</td>':'')
-      +'</tr>'
-    ).join('') : ''
-
     const vatTh = cfg.showVat ? '<th class="r">'+PL.vatCol+'</th>' : ''
-    const summaryBlock = rows.length > 1 ? (
+    const summaryRows = rows.length>1 ? rows.slice().sort((a,b)=>a.totalQty-b.totalQty).map(r=>
+      '<tr class="'+(r.totalQty===minTotal?'sb':'')+'"><td>'+(r.q.suppliers?.name||'—')
+      +(r.totalQty===minTotal?' <span class="bdg">'+PL.bestPrice+'</span>':'')
+      +'</td><td class="r"><b>€ '+r.totalQty.toFixed(2)+'</b></td>'
+      +(cfg.showVat?'<td class="r">€ '+r.totalWithVat.toFixed(2)+'</td>':'')+'</tr>'
+    ).join('') : ''
+    const summaryFoot = bestRow ? '<tfoot><tr class="sf"><td>'+PL.summaryBest+': <b>'+(bestRow.q.suppliers?.name||'')+'</b></td>'
+      +'<td class="r"><b>€ '+bestRow.totalQty.toFixed(2)+'</b></td>'
+      +(cfg.showVat?'<td class="r"><b>€ '+bestRow.totalWithVat.toFixed(2)+'</b></td>':'')
+      +'</tr></tfoot>' : ''
+    const summaryBlock = rows.length>1 ?
       '<div class="sbox"><div class="st">'+PL.summary+'</div>'
       +'<table><thead><tr><th>'+PL.supplier+'</th><th class="r">'+PL.total+'</th>'+vatTh+'</tr></thead>'
-      +'<tbody>'+summaryRows2+'</tbody>'
-      +(bestRow ? '<tfoot><tr class="sf"><td>'+PL.summaryBest+': <b>'+(bestRow.q.suppliers?.name||'')+'</b></td><td class="r"><b>€ '+bestRow.totalQty.toFixed(2)+'</b></td>'+(cfg.showVat?'<td class="r"><b>€ '+bestRow.totalWithVat.toFixed(2)+'</b></td>':'')+'</tr></tfoot>' : '')
-      +'</table></div>'
-    ) : ''
+      +'<tbody>'+summaryRows+'</tbody>'+summaryFoot+'</table></div>' : ''
 
     const css = 'body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a2e;margin:0;padding:28px 32px}'
-      +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:14px;border-bottom:3px solid #185FA5}'
-      +'.logo{font-size:22px;font-weight:800;color:#185FA5}.addr{font-size:9px;color:#888;margin-top:4px;line-height:1.5}'
-      +'.dtitle{font-size:18px;font-weight:700;color:#185FA5;text-align:right}.dmeta{font-size:10px;color:#666;text-align:right;line-height:1.8}'
-      +'.req{background:#f8faff;border:1px solid #d0ddf5;border-left:4px solid #185FA5;border-radius:6px;padding:12px 16px;margin-bottom:18px}'
-      +'.rname{font-size:14px;font-weight:700;margin-bottom:6px}.rmeta{font-size:10px;color:#666;display:flex;gap:16px;flex-wrap:wrap}'
-      +'.ml{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.5px;display:block}.mv{font-weight:600;color:#333}'
-      +'table{width:100%;border-collapse:collapse;margin-bottom:14px}'
-      +'thead tr{background:#185FA5}th{color:#fff;padding:8px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.5px}'
-      +'th.r,th.c{text-align:right}th.c{text-align:center}'
+      +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:14px;border-bottom:3px solid #185FA5}'
+      +'.logo{font-size:22px;font-weight:800;color:#185FA5}.addr{font-size:9px;color:#888;margin-top:3px;line-height:1.5}'
+      +'.dtitle{font-size:17px;font-weight:700;color:#185FA5;text-align:right;margin-bottom:4px}.dmeta{font-size:10px;color:#666;text-align:right;line-height:1.8}'
+      +'.req{background:#f8faff;border:1px solid #d0ddf5;border-left:4px solid #185FA5;border-radius:5px;padding:12px 16px;margin-bottom:16px}'
+      +'.rname{font-size:13px;font-weight:700;margin-bottom:6px}.rmeta{font-size:10px;color:#666;display:flex;gap:14px;flex-wrap:wrap}'
+      +'.ml{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:0.4px;display:block}.mv{font-weight:600;color:#333}'
+      +'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
+      +'thead tr{background:#185FA5}th{color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.4px}'
+      +'th.r{text-align:right}th.c{text-align:center}'
       +'tbody tr{border-bottom:1px solid #eef1f8}tbody tr:nth-child(even){background:#f9fafc}'
       +'td{padding:8px 10px;font-size:11px;vertical-align:middle}td.r{text-align:right}td.c{text-align:center}td.b{font-weight:600}'
-      +'td.best{background:#edf7ed}.badge{display:inline-block;background:#2d7a2d;color:#fff;font-size:8px;padding:2px 5px;border-radius:8px;margin-top:2px}'
-      +'.sbox{background:#f8faff;border:1px solid #d0ddf5;border-radius:6px;padding:14px 18px;margin-top:8px;margin-bottom:16px}'
-      +'.st{font-size:11px;font-weight:700;color:#185FA5;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px}'
-      +'.sbox table thead tr{background:#e8f0fb}.sbox th{color:#185FA5}'
-      +'.sb td{background:#edf7ed;font-weight:600}.sf td{border-top:2px solid #185FA5;padding-top:7px}'
-      +'.foot{margin-top:20px;padding-top:10px;border-top:1px solid #dde3f0;display:flex;justify-content:space-between;font-size:9px;color:#aaa}'
-      +'small{font-size:9px;color:#888;display:block;margin-top:1px}em{font-style:italic;color:#2d7a2d;font-size:10px}'
+      +'td.best{background:#edf7ed!important}.bdg{display:inline-block;background:#2d7a2d;color:#fff;font-size:8px;padding:2px 5px;border-radius:7px;margin-top:2px}'
+      +'i{font-style:italic;color:#2d7a2d;font-size:10px}s{font-style:normal;text-decoration:none;font-size:9px;color:#888;display:block;margin-top:1px}'
+      +'.sbox{background:#f8faff;border:1px solid #d0ddf5;border-radius:5px;padding:12px 16px;margin-bottom:14px}'
+      +'.st{font-size:10px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}'
+      +'.sbox thead tr{background:#e8f0fb}.sbox th{color:#185FA5}'
+      +'.sb td{background:#edf7ed;font-weight:600}.sf td{border-top:2px solid #185FA5;padding-top:6px}'
+      +'.foot{margin-top:18px;padding-top:10px;border-top:1px solid #dde3f0;display:flex;justify-content:space-between;font-size:9px;color:#aaa}'
       +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
 
-    const vatThMain = cfg.showVat ? '<th class="r">'+PL.vatCol+'</th>' : ''
     const affaireInfo = selReq.affaires ? (PL.work+': '+selReq.affaires.ref_number+' — '+selReq.affaires.name) : ''
-
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+PL.title+'</title><style>'+css+'</style></head><body>'
-      +'<div class="hdr">'
-        +'<div><div class="logo">AVM Lda</div><div class="addr">Estrada Nacional 226<br>6420-572 Trancoso<br>Portugal</div></div>'
-        +'<div><div class="dtitle">'+PL.title+'</div><div class="dmeta">'+PL.date+': '+today+'<br>'+PL.ref+': '+selReq.ref_number+(affaireInfo?'<br>'+affaireInfo:'')+'</div></div>'
-      +'</div>'
-      +'<div class="req">'
-        +'<div class="rname">'+selReq.description+'</div>'
-        +'<div class="rmeta">'
-          +'<div><span class="ml">'+PL.qty+'</span><span class="mv">'+selReq.quantity+' '+selReq.unit+'</span></div>'
-          +(selReq.client_ref?'<div><span class="ml">'+PL.clientRef+'</span><span class="mv">'+selReq.client_ref+'</span></div>':'')
-          +(selReq.product_brand?'<div><span class="ml">Marca</span><span class="mv">'+selReq.product_brand+(selReq.product_ref?' #'+selReq.product_ref:'')+'</span></div>':'')
-          +(selReq.needed_by?'<div><span class="ml">'+PL.dateReq+'</span><span class="mv" style="color:#c47a00">'+new Date(selReq.needed_by).toLocaleDateString(locale)+'</span></div>':'')
-        +'</div>'
-        +(selReq.notes?'<div style="margin-top:8px;font-size:10px;color:#555"><b>'+PL.specs+':</b> '+selReq.notes+'</div>':'')
-      +'</div>'
-      +'<table>'
-        +'<thead><tr>'
-          +'<th>'+PL.supplier+'</th><th class="c">'+PL.delay+'</th><th class="c">'+PL.payment+'</th>'
-          +'<th class="r">'+PL.unitPrice+'</th><th class="r">'+PL.delivery+'</th>'
-          +'<th class="r">'+PL.unitTotal+'</th><th class="r">'+PL.total+' ('+selReq.quantity+' '+selReq.unit+')</th>'
-          +vatThMain
-        +'</tr></thead>'
-        +'<tbody>'+tableRows+'</tbody>'
-      +'</table>'
+      +'<div class="hdr"><div><div class="logo">AVM Lda</div><div class="addr">Estrada Nacional 226<br>6420-572 Trancoso<br>Portugal</div></div>'
+      +'<div><div class="dtitle">'+PL.title+'</div><div class="dmeta">'+PL.date+': '+today+'<br>'+PL.ref+': '+selReq.ref_number+(affaireInfo?'<br>'+affaireInfo:'')+'</div></div></div>'
+      +'<div class="req"><div class="rname">'+selReq.description+'</div><div class="rmeta">'
+      +'<div><span class="ml">'+PL.qty+'</span><span class="mv">'+selReq.quantity+' '+selReq.unit+'</span></div>'
+      +(selReq.client_ref?'<div><span class="ml">'+PL.clientRef+'</span><span class="mv">'+selReq.client_ref+'</span></div>':'')
+      +(selReq.product_brand?'<div><span class="ml">Marca</span><span class="mv">'+selReq.product_brand+(selReq.product_ref?' #'+selReq.product_ref:'')+'</span></div>':'')
+      +(selReq.needed_by?'<div><span class="ml">'+PL.dateReq+'</span><span class="mv" style="color:#c47a00">'+new Date(selReq.needed_by).toLocaleDateString(locale)+'</span></div>':'')
+      +'</div>'+(selReq.notes?'<div style="margin-top:7px;font-size:10px;color:#555"><b>'+PL.specs+':</b> '+selReq.notes+'</div>':'')+'</div>'
+      +'<table><thead><tr>'
+      +'<th>'+PL.supplier+'</th><th class="c">'+PL.delay+'</th><th class="c">'+PL.payment+'</th>'
+      +'<th class="r">'+PL.unitPrice+'</th><th class="r">'+PL.delivery+'</th>'
+      +'<th class="r">'+PL.unitTotal+'</th><th class="r">'+PL.total+' ('+selReq.quantity+' '+selReq.unit+')</th>'
+      +vatThMain
+      +'</tr></thead><tbody>'+tableRows+'</tbody></table>'
       +summaryBlock
-      +(margin>0?'<p style="font-size:9px;color:#888;font-style:italic">* '+PL.marginNote+' '+margin+'% '+PL.marginSuffix+'</p>':'')
+      +(margin>0?'<p style="font-size:9px;color:#888;font-style:italic;margin-top:4px">* '+PL.marginNote+' '+margin+'% '+PL.marginSuffix+'</p>':'')
       +'<div class="foot"><div>'+PL.footer+'</div><div>'+today+'</div></div>'
       +'</body></html>'
 
