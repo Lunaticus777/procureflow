@@ -322,7 +322,6 @@ export default function Requisitions() {
                   ))}
                 </div>
               }
-            }
           </div>
         </div>
 
