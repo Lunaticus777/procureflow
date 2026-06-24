@@ -41,7 +41,7 @@ export default function Quotations() {
   useEffect(() => {
     async function load() {
       const [{ data: rData }, { data: affData }, { data: sData }] = await Promise.all([
-        supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Entregue').not('status','eq','Cancelado').order('created_at',{ascending:false}),
+        supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Cancelado').order('created_at',{ascending:false}),
         supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
         supabase.from('suppliers').select('*').eq('active',true).order('name'),
       ])
@@ -368,7 +368,7 @@ export default function Quotations() {
             </select>
             <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'5px 8px',fontSize:12,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
               <option value="">Todos os estados</option>
-              {['Pendente','Em cotação','Aprovado','Encomendado'].map(s=><option key={s}>{s}</option>)}
+              {['Pendente','Em cotação','Aprovado','Encomendado','Em trânsito','Entregue'].map(s=><option key={s}>{s}</option>)}
             </select>
             {(search||filterAffaire||filterStatus)&&<button className="btn btn-sm" onClick={()=>{setSearch('');setFilterAffaire('');setFilterStatus('')}} style={{fontSize:11}}>✕ Limpar</button>}
           </div>
