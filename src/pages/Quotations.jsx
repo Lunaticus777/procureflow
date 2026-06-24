@@ -323,6 +323,59 @@ export default function Quotations() {
     setShowProposal(false)
   }
 
+  const T = {
+    pt: {
+      title:'Cotações', search:'Pesquisar — descrição, ref., obra...', allWorks:'Todas as obras',
+      allStatus:'Todos os estados', clear:'✕ Limpar', ref:'Ref.', description:'Descrição',
+      work:'Obra', qty:'Qtd.', status:'Estado', quotes:'Cotações', addQuote:'Adicionar',
+      proposalPDF:'Proposta PDF', noQuotes:'Sem cotações. Adiciona a primeira!',
+      noReqs:'Sem requisições.', editQuote:'Editar Cotação', newQuote:'Nova Cotação',
+      unitPrice:'Preço unitário (€)', discount:'Desconto (%)', deliveryDays:'Prazo entrega (dias)',
+      deliveryCost:'Custo de entrega (€)', carrier:'Transportador', forfait:'Forfait transporte (€)',
+      validUntil:'Válido até', paymentTerms:'Condições pagamento', notes:'Notas',
+      vatRate:'IVA (%)', vatExempt:'Isento de IVA', priceInclVat:'Preço inclui IVA',
+      deliveryType:'Local de entrega', cancel:'Cancelar', save:'Guardar',
+      approve:'✓ Aprovar e Encomendar', relaunch:'Relançar',
+      best:'💰 Melhor preço', approved:'✓ Aprovado → Encomendado', rejected:'✗ Não aprovado',
+      minSuppliers:'fornecedores mínimos', missingQuotes:'faltam',
+      proposal:'Proposta de Fornecimento', thisReq:'Esta requisição', wholeWork:'Toda a obra',
+      margin:'Majoration (%)', marginNote:'aplicada (não visível no documento)', noMargin:'Sem majoration',
+      showVat:'Mostrar coluna IVA', generatePDF:'Gerar PDF', langLabel:'Idioma do documento',
+      optional:'opcional', fixedValue:'valor fixo', noCarrier:'— Sem transportador —',
+      transport:'🚛 Forfait transporte', transportCarrier:'Transportador',
+      unitPriceLabel:'Preço unit.', discountLabel:'Desconto', finalLabel:'Final/un.',
+      totalLabel:'Total', deliveryLabel:'Entrega', paymentLabel:'Pagamento',
+      vatLabel:'IVA', totalVatLabel:'Total c/IVA', suppliersMin:'Min. fornecedores',
+      followupTitle:'Seguimento', addFollowup:'Adicionar seguimento',
+      contactType:'Tipo de contacto', followupNotes:'Notas', nextFollowup:'Próximo seguimento',
+    },
+    fr: {
+      title:'Devis', search:'Rechercher — description, réf., chantier...', allWorks:'Tous les chantiers',
+      allStatus:'Tous les statuts', clear:'✕ Effacer', ref:'Réf.', description:'Description',
+      work:'Chantier', qty:'Qté.', status:'Statut', quotes:'Devis', addQuote:'Ajouter',
+      proposalPDF:'Offre PDF', noQuotes:'Aucun devis. Ajoutez le premier!',
+      noReqs:'Aucune réquisition.', editQuote:'Modifier le devis', newQuote:'Nouveau devis',
+      unitPrice:'Prix unitaire (€)', discount:'Remise (%)', deliveryDays:'Délai livraison (jours)',
+      deliveryCost:'Frais de livraison (€)', carrier:'Transporteur', forfait:'Forfait transport (€)',
+      validUntil:"Valable jusqu'au", paymentTerms:'Conditions de paiement', notes:'Notes',
+      vatRate:'TVA (%)', vatExempt:'Exonéré de TVA', priceInclVat:'Prix TVA incluse',
+      deliveryType:'Lieu de livraison', cancel:'Annuler', save:'Enregistrer',
+      approve:'✓ Approuver et Commander', relaunch:'Relancer',
+      best:'💰 Meilleur prix', approved:'✓ Approuvé → Commandé', rejected:'✗ Non retenu',
+      minSuppliers:'fournisseurs minimum', missingQuotes:'manquent',
+      proposal:'Offre de Fourniture', thisReq:'Cette réquisition', wholeWork:'Tout le chantier',
+      margin:'Majoration (%)', marginNote:'appliquée (non visible dans le document)', noMargin:'Sans majoration',
+      showVat:'Afficher colonne TVA', generatePDF:'Générer PDF', langLabel:'Langue du document',
+      optional:'optionnel', fixedValue:'valeur fixe', noCarrier:'— Sans transporteur —',
+      transport:'🚛 Forfait transport', transportCarrier:'Transporteur',
+      unitPriceLabel:'Prix unit.', discountLabel:'Remise', finalLabel:'Final/un.',
+      totalLabel:'Total', deliveryLabel:'Livraison', paymentLabel:'Paiement',
+      vatLabel:'TVA', totalVatLabel:'Total TVA', suppliersMin:'Min. fournisseurs',
+      followupTitle:'Suivi', addFollowup:'Ajouter un suivi',
+      contactType:'Type de contact', followupNotes:'Notes', nextFollowup:'Prochain suivi',
+    }
+  }
+
   const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
 
   return (
