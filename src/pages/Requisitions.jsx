@@ -103,6 +103,98 @@ export default function Requisitions() {
     return matchSearch && matchStatus && matchPrio && matchAffaire
   })
 
+  const openEdit = (r) => {
+    setEditReq(r)
+    setForm({
+      client_ref:r.client_ref||'', product_ref:r.product_ref||'', product_brand:r.product_brand||'', product_url:r.product_url||'',
+      description:r.description, quantity:r.quantity, unit:r.unit, priority:r.priority,
+      needed_by:r.needed_by||'', min_quotes:r.min_quotes||2, notes:r.notes||'', affaire_id:r.affaire_id||'',
+      image_url:r.image_url||'', delivery_type:r.delivery_type||'', delivery_address:r.delivery_address||'',
+      delivery_city:r.delivery_city||'', delivery_notes:r.delivery_notes||'',
+      technical_contact_name:r.technical_contact_name||'', technical_contact_email:r.technical_contact_email||'',
+      technical_contact_phone:r.technical_contact_phone||'', technical_contact_company:r.technical_contact_company||'',
+      technical_contact_notes:r.technical_contact_notes||''
+    })
+    setFormErrors({}); setShowForm(true); setSelected(null)
+  }
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target.result)
+    reader.readAsDataURL(file)
+    const path = 'requisitions/'+Date.now()+'_'+file.name
+    const { error } = await supabase.storage.from('procureflow-docs').upload(path, file)
+    if (error) { alert('Erro ao carregar imagem: ' + error.message); return }
+    setForm(f => ({ ...f, image_url: path }))
+  }
+
+  const handleSave = async () => {
+    const errors = {}
+    if (!form.description) errors.description = 'Descrição obrigatória'
+    if (!form.quantity) errors.quantity = 'Quantidade obrigatória'
+    if (Object.keys(errors).length > 0) { setFormErrors(errors); return }
+    setFormErrors({})
+    setSaving(true)
+    const { data: emp } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
+    const payload = {
+      client_ref: form.client_ref||null, product_ref: form.product_ref||null,
+      product_brand: form.product_brand||null, product_url: form.product_url||null,
+      description: form.description, quantity: parseFloat(form.quantity), unit: form.unit,
+      priority: form.priority, needed_by: form.needed_by||null, min_quotes: parseInt(form.min_quotes)||2,
+      notes: form.notes||null, affaire_id: form.affaire_id||null, image_url: form.image_url||null,
+      delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null,
+      delivery_city: form.delivery_city||null, delivery_notes: form.delivery_notes||null,
+      technical_contact_name: form.technical_contact_name||null,
+      technical_contact_email: form.technical_contact_email||null,
+      technical_contact_phone: form.technical_contact_phone||null,
+      technical_contact_company: form.technical_contact_company||null,
+      technical_contact_notes: form.technical_contact_notes||null,
+    }
+    if (editReq) {
+      if (emp?.role !== 'admin') {
+        const changes = {}
+        if (form.description !== editReq.description) changes.description = { old: editReq.description, new: form.description }
+        if (String(form.quantity) !== String(editReq.quantity)) changes.quantity = { old: editReq.quantity, new: form.quantity }
+        if (form.priority !== editReq.priority) changes.priority = { old: editReq.priority, new: form.priority }
+        if (Object.keys(changes).length > 0) {
+          await requestAction({ empId: emp?.id, action: 'update', entityType: 'requisition', entityId: editReq.id, entityRef: editReq.ref_number, entityLabel: editReq.description?.slice(0,80), changes })
+          alert('Modificação enviada para aprovação do administrador.')
+        }
+      } else {
+        const { error } = await supabase.from('requisitions').update(payload).eq('id', editReq.id)
+        if (error) { alert('Erro: ' + error.message); setSaving(false); return }
+        await logActivity({ empId: emp?.id, action: 'updated', entityType: 'requisition', entityRef: editReq.ref_number, description: 'actualizou requisição '+editReq.ref_number })
+      }
+    } else {
+      const { data: lastReq } = await supabase.from('requisitions').select('ref_number').like('ref_number','REQ-%').order('ref_number',{ascending:false}).limit(1)
+      const lastNum = lastReq?.[0]?.ref_number ? parseInt(lastReq[0].ref_number.replace('REQ-',''))||0 : 0
+      const refNum = 'REQ-'+String(lastNum+1).padStart(3,'0')
+      const { error } = await supabase.from('requisitions').insert({ ...payload, ref_number: refNum, created_by: emp?.id||null, status: 'Pendente' })
+      if (!error) await logActivity({ empId: emp?.id, action: 'created', entityType: 'requisition', entityRef: refNum, description: 'criou requisição '+refNum, affaireId: form.affaire_id||null })
+      if (error) { alert('Erro: ' + error.message); setSaving(false); return }
+    }
+    setForm({ client_ref:'', product_ref:'', product_brand:'', product_url:'', description:'', quantity:'', unit:'un.', priority:'Média', needed_by:'', min_quotes:'2', notes:'', affaire_id:'', image_url:'', delivery_type:'', delivery_address:'', delivery_city:'', delivery_notes:'', technical_contact_name:'', technical_contact_email:'', technical_contact_phone:'', technical_contact_company:'', technical_contact_notes:'' })
+    setShowForm(false); setEditReq(null); setSaving(false); load()
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Apagar esta requisição?')) return
+    const req = rows.find(r => r.id === id)
+    const { data: emp } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
+    if (emp?.role === 'admin') {
+      const { error } = await supabase.from('requisitions').delete().eq('id', id)
+      if (error) { alert('Erro: ' + error.message); return }
+      await logActivity({ empId: emp?.id, action: 'deleted', entityType: 'requisition', entityRef: req?.ref_number, description: 'apagou requisição '+req?.ref_number })
+      if (selected?.id === id) setSelected(null)
+      load()
+    } else {
+      await requestAction({ empId: emp?.id, action: 'delete', entityType: 'requisition', entityId: id, entityRef: req?.ref_number, entityLabel: req?.description?.slice(0,80) })
+      alert('Pedido de apagamento enviado para aprovação do administrador.')
+    }
+  }
+
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
