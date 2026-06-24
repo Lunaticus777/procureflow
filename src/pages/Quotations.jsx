@@ -164,7 +164,7 @@ export default function Quotations() {
       unitPrice:'Prix/un.', delivery:'Livraison', total:'Total', vatCol:'Total TVA',
       vatNote:'TVA', bestPrice:'Meilleur prix', noDelivery:'Incluse',
       clientRef:'Réf. client', ref:'Réf.', qty:'Quantité',
-      footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
+      footer:'ProcureFlow · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
       noReqs:'Aucune réquisition pour ce chantier.',
       summaryBest:'Meilleure option', forfait:'Forfait transport',
     } : {
@@ -172,7 +172,7 @@ export default function Quotations() {
       unitPrice:'Preço/un.', delivery:'Entrega', total:'Total', vatCol:'Total c/IVA',
       vatNote:'IVA', bestPrice:'Melhor preço', noDelivery:'Incluída',
       clientRef:'Ref. cli', ref:'Ref.', qty:'Quantidade',
-      footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
+      footer:'ProcureFlow · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
       noReqs:'Sem requisições para esta obra.',
       summaryBest:'Melhor opção', forfait:'Forfait transporte',
     }
@@ -252,7 +252,7 @@ export default function Quotations() {
       +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
 
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+PL.title+'</title><style>'+css+'</style></head><body>'
-      +'<div class="hdr"><div><div class="logo">AVM Lda</div><div class="addr">Estrada Nacional 226<br>6420-572 Trancoso<br>Portugal</div></div>'
+      +'<div class="hdr"><div><div class="logo">ProcureFlow</div><div class="addr">Estrada Nacional 226<br>6420-572 Trancoso<br>Portugal</div></div>'
       +'<div><div class="dt">'+PL.title+'</div><div class="dm">'+(affaire?.ref_number||'')+' — '+(affaire?.name||'')+'<br>'+today+'</div></div></div>'
       +reqSections
       +'<div class="gt"><div class="gtl">'+PL.summaryBest+' — '+PL.total+'</div>'
@@ -318,7 +318,7 @@ export default function Quotations() {
     'tr:nth-child(even) td{background:#f9f9f9}.best td{background:#edf7ed!important}' +
     '.footer{margin-top:30px;border-top:1px solid #ddd;padding-top:12px;font-size:10px;color:#888}</style>' +
     '</head><body>' +
-    '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>' +
+    '<div class="header"><div><div class="logo">ProcureFlow</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>' +
     '<div class="doc-title"><h2>Proposta de Fornecimento</h2><p>Data: '+today+'</p><p>Ref.: '+selReq.ref_number+'</p>' +
     (selReq.affaires?'<p>Obra: '+selReq.affaires.ref_number+' — '+selReq.affaires.name+'</p>':'') +
     '</div></div>' +
@@ -329,7 +329,7 @@ export default function Quotations() {
     '<table><thead><tr><th>Fornecedor</th><th>Prazo</th><th>Pagamento</th><th style="text-align:right">Preço/un.</th><th style="text-align:right">Entrega</th><th style="text-align:right">Total/un.</th><th style="text-align:right">Total ('+selReq.quantity+' '+selReq.unit+')</th><th style="text-align:right">Total c/IVA</th></tr></thead>' +
     '<tbody>'+tableRows+'</tbody></table>' +
     (margin>0?'<p style="font-size:10px;color:#888;font-style:italic">* Preços apresentados com margem de '+margin+'% aplicada sobre valores de fornecedor.</p>':'') +
-    '<div class="footer"><p>Documento gerado por ProcureFlow · AVM Lda · Estrada Nacional 226, 6420-572 Trancoso</p></div>' +
+    '<div class="footer"><p>Documento gerado por ProcureFlow · ProcureFlow · Estrada Nacional 226, 6420-572 Trancoso</p></div>' +
     '</body></html>'
 
     const win = window.open('', '_blank')
