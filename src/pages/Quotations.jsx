@@ -167,9 +167,9 @@ export default function Quotations() {
       clientRef:'Réf. client', footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
       noReqs:'Aucune réquisition pour ce chantier.'
     } : {
-      title:'Proposta de Fornecimento', supplier:'Fornecedor', delay:'Prazo', payment:'Pagamento',
-      unitPrice:'Preço/un.', delivery:'Entrega', total:'Total', vatCol:'Total c/IVA',
-      vatNote:'IVA', bestPrice:'Melhor preço', noDelivery:'Incluída',
+      title:'Proposta de Fornecimento', supplier:'Fornecedor', delay:'Prazo', payment:T[lang].paymentLabel,
+      unitPrice:'Preço/un.', delivery:T[lang].deliveryLabel, total:'Total', vatCol:T[lang].totalVatLabel,
+      vatNote:T[lang].vatLabel, bestPrice:'Melhor preço', noDelivery:'Incluída',
       clientRef:'Ref. cli', footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
       noReqs:'Sem requisições para esta obra.'
     }
@@ -259,8 +259,8 @@ export default function Quotations() {
     } : {
       title:'Proposta de Fornecimento', date:'Data', ref:'Ref.', work:'Obra', qty:'Quantidade',
       clientRef:'Ref. cliente', specs:'Especificações', supplier:'Fornecedor', delay:'Prazo',
-      payment:'Pagamento', unitPrice:'Preço/un.', delivery:'Entrega', unitTotal:'Total/un.',
-      total:'Total', vatCol:'Total c/IVA', vatNote:'IVA', bestPrice:'Melhor preço',
+      payment:T[lang].paymentLabel, unitPrice:'Preço/un.', delivery:T[lang].deliveryLabel, unitTotal:'Total/un.',
+      total:'Total', vatCol:T[lang].totalVatLabel, vatNote:T[lang].vatLabel, bestPrice:'Melhor preço',
       noDelivery:'Incluída', marginNote:'* Margem de', marginSuffix:'% aplicada.',
       footer:'Documento gerado por ProcureFlow · AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
       carrier:'Transportador', forfait:'Forfait transporte'
@@ -347,10 +347,10 @@ export default function Quotations() {
       margin:'Majoration (%)', marginNote:'aplicada (não visível no documento)', noMargin:'Sem majoration',
       showVat:'Mostrar coluna IVA', generatePDF:'Gerar PDF', langLabel:'Idioma do documento',
       optional:'opcional', fixedValue:'valor fixo', noCarrier:'— Sem transportador —',
-      transport:'🚛 Forfait transporte', transportCarrier:'Transportador',
-      unitPriceLabel:'Preço unit.', discountLabel:'Desconto', finalLabel:'Final/un.',
-      totalLabel:'Total', deliveryLabel:'Entrega', paymentLabel:'Pagamento',
-      vatLabel:'IVA', totalVatLabel:'Total c/IVA', suppliersMin:'Min. fornecedores',
+      transport:T[lang].transport, transportCarrier:'Transportador',
+      unitPriceLabel:T[lang].unitPriceLabel, discountLabel:T[lang].discountLabel, finalLabel:T[lang].finalLabel,
+      totalLabel:'Total', deliveryLabel:T[lang].deliveryLabel, paymentLabel:T[lang].paymentLabel,
+      vatLabel:T[lang].vatLabel, totalVatLabel:T[lang].totalVatLabel, suppliersMin:'Min. fornecedores',
       followupTitle:'Seguimento', addFollowup:'Adicionar seguimento',
       contactType:'Tipo de contacto', followupNotes:'Notas', nextFollowup:'Próximo seguimento',
     },
@@ -373,7 +373,7 @@ export default function Quotations() {
       showVat:'Afficher colonne TVA', generatePDF:'Générer PDF', langLabel:'Langue du document',
       optional:'optionnel', fixedValue:'valeur fixe', noCarrier:'— Sans transporteur —',
       transport:'🚛 Forfait transport', transportCarrier:'Transporteur',
-      unitPriceLabel:'Prix unit.', discountLabel:'Remise', finalLabel:'Final/un.',
+      unitPriceLabel:'Prix unit.', discountLabel:'Remise', finalLabel:T[lang].finalLabel,
       totalLabel:'Total', deliveryLabel:'Livraison', paymentLabel:'Paiement',
       vatLabel:'TVA', totalVatLabel:'Total TVA', suppliersMin:'Min. fournisseurs',
       followupTitle:'Suivi', addFollowup:'Ajouter un suivi',
@@ -462,12 +462,12 @@ export default function Quotations() {
                 <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>{selReq.description}</div>
                 <div style={{display:'flex',gap:12,fontSize:13,flexWrap:'wrap'}}>
                   <span><span style={{color:'var(--text-muted)'}}>Qtd: </span><strong>{selReq.quantity} {selReq.unit}</strong></span>
-                  <span><span style={{color:'var(--text-muted)'}}>Mín. fornecedores: </span><strong>{selReq.min_quotes}</strong></span>
-                  {selReq.needed_by && <span><span style={{color:'var(--text-muted)'}}>Data necessária: </span><strong style={{color:'var(--amber)'}}>{new Date(selReq.needed_by).toLocaleDateString('pt-PT')}</strong></span>}
+                  <span><span style={{color:'var(--text-muted)'}}>{T[lang].suppliersMin}: </span><strong>{selReq.min_quotes}</strong></span>
+                  {selReq.needed_by && <span><span style={{color:'var(--text-muted)'}}>{lang==="fr"?'Date requise: ':'Data necessária: '}</span><strong style={{color:'var(--amber)'}}>{new Date(selReq.needed_by).toLocaleDateString(lang==="fr"?'fr-FR':'pt-PT')}</strong></span>}
                 </div>
                 {selReq.notes && (
                   <div style={{marginTop:8,padding:'8px',background:'var(--bg)',borderRadius:'var(--radius)',fontSize:12}}>
-                    <span style={{fontWeight:600,color:'var(--text-muted)'}}>Especificações: </span>{selReq.notes}
+                    <span style={{fontWeight:600,color:'var(--text-muted)'}}>{lang==="fr"?"Spécifications: ":"Especificações: "}</span>{selReq.notes}
                   </div>
                 )}
                 {selReq.technical_contact_name && (
@@ -492,69 +492,69 @@ export default function Quotations() {
             <div className="card" style={{marginBottom:12}}>
               <div className="card-header"><span className="card-title">{editQuote?T[lang].editQuote:T[lang].newQuote} — {selReq.description.slice(0,40)}</span></div>
               <div className="form-grid">
-                <div className="form-group full"><label>Fornecedor *</label>
+                <div className="form-group full"><label>{lang==="fr"?"Fournisseur *":"Fornecedor *"}</label>
                   <select value={form.supplier_id} onChange={e=>setForm({...form,supplier_id:e.target.value})}>
-                    <option value="">Selecionar...</option>
+                    <option value="">{lang==="fr"?"Sélectionner...":"Selecionar..."}</option>
                     {suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
-                <div className="form-group"><label>Referência do fornecedor</label><input value={form.supplier_ref} onChange={e=>setForm({...form,supplier_ref:e.target.value})} /></div>
-                <div className="form-group"><label>Preço unitário (€) *</label><input type="number" step="0.01" value={form.unit_price} onChange={e=>setForm({...form,unit_price:e.target.value})} /></div>
-                <div className="form-group"><label>Desconto (%)</label><input type="number" value={form.discount_pct} onChange={e=>setForm({...form,discount_pct:e.target.value})} /></div>
+                <div className="form-group"><label>{lang==="fr"?"Référence fournisseur":"Referência do fornecedor"}</label><input value={form.supplier_ref} onChange={e=>setForm({...form,supplier_ref:e.target.value})} /></div>
+                <div className="form-group"><label>{T[lang].unitPrice} *</label><input type="number" step="0.01" value={form.unit_price} onChange={e=>setForm({...form,unit_price:e.target.value})} /></div>
+                <div className="form-group"><label>{T[lang].discount}</label><input type="number" value={form.discount_pct} onChange={e=>setForm({...form,discount_pct:e.target.value})} /></div>
                 <div className="form-group"><label>{T[lang].deliveryDays}</label><input type="number" value={form.delivery_days} onChange={e=>setForm({...form,delivery_days:e.target.value})} /></div>
                 <div className="form-group"><label>{T[lang].deliveryCost} <span style={{fontWeight:400,fontSize:11,color:'var(--text-muted)'}}>{T[lang].optional}</span></label><input type="number" step="0.01" value={form.delivery_price} onChange={e=>setForm({...form,delivery_price:e.target.value})} placeholder="0.00" /></div>
                 <div className="form-group"><label>{T[lang].carrier} <span style={{fontWeight:400,fontSize:11,color:'var(--text-muted)'}}>{T[lang].optional}</span></label>
                   <select value={form.carrier_id} onChange={e=>setForm({...form,carrier_id:e.target.value})}>
-                    <option value="">— Sem transportador —</option>
+                    <option value="">{T[lang].noCarrier}</option>
                     {carriers.map(c=><option key={c.id} value={c.id}>{c.name}{c.base_price?' · '+c.currency+' '+c.base_price:''}</option>)}
                   </select>
                 </div>
                 <div className="form-group"><label>{T[lang].forfait} <span style={{fontWeight:400,fontSize:11,color:'var(--text-muted)'}}>{T[lang].fixedValue}</span></label>
                   <input type="number" step="0.01" value={form.transport_forfait} onChange={e=>setForm({...form,transport_forfait:e.target.value})} placeholder="0.00" />
                 </div>
-                <div className="form-group"><label>Validade</label><input type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})} /></div>
-                <div className="form-group"><label>Condições pagamento</label>
+                <div className="form-group"><label>{T[lang].validUntil}</label><input type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})} /></div>
+                <div className="form-group"><label>{T[lang].paymentTerms}</label>
                   <select value={form.payment_terms} onChange={e=>setForm({...form,payment_terms:e.target.value})}>
                     {['Pronto pagamento','30 dias','45 dias','60 dias','90 dias'].map(t=><option key={t}>{t}</option>)}
                   </select>
                 </div>
                 {selReq.quantity && <div className="form-group">
-                  <label>Total estimado</label>
+                  <label>{lang==="fr"?"Total estimé":"Total estimado"}</label>
                   <div style={{padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',fontSize:13,fontWeight:600,color:'var(--blue)'}}>
                     {form.unit_price ? `€ ${(parseFloat(form.unit_price) * (1-parseFloat(form.discount_pct||0)/100) * parseFloat(selReq.quantity)).toLocaleString('pt-PT',{minimumFractionDigits:2})}` : '—'}
                   </div>
                 </div>}
-                <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
+                <div className="form-group full"><label>{T[lang].notes}</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
               </div>
 
               <div style={{marginTop:12,paddingTop:12,borderTop:'0.5px solid var(--border)'}}>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--green)',marginBottom:10}}><i className="ti ti-truck-delivery" style={{marginRight:6}}/>Local de entrega</div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--green)',marginBottom:10}}><i className="ti ti-truck-delivery" style={{marginRight:6}}/>{lang==="fr"?"Lieu de livraison":"Local de entrega"}</div>
                 <div className="form-grid" style={{gap:8}}>
-                  <div className="form-group full"><label>Tipo de entrega</label>
+                  <div className="form-group full"><label>{T[lang].deliveryType}</label>
                     <select value={form.delivery_type} onChange={e=>setForm({...form,delivery_type:e.target.value})}>
-                      <option value="">— Igual à requisição —</option>
+                      <option value="">{lang==="fr"?"— Identique à la réquisition —":"— Igual à requisição —"}</option>
                       {['Obra (morada da obra)','Armazém','Outro endereço','Entrega intermédia (2+ transportes)'].map(t=><option key={t}>{t}</option>)}
                     </select>
                   </div>
                   {form.delivery_type && form.delivery_type!=='Obra (morada da obra)' && <>
-                    <div className="form-group full"><label>Morada</label><input value={form.delivery_address} onChange={e=>setForm({...form,delivery_address:e.target.value})} placeholder="Morada completa" /></div>
-                    <div className="form-group"><label>Cidade</label><input value={form.delivery_city} onChange={e=>setForm({...form,delivery_city:e.target.value})} /></div>
+                    <div className="form-group full"><label>{lang==="fr"?"Adresse":"Morada"}</label><input value={form.delivery_address} onChange={e=>setForm({...form,delivery_address:e.target.value})} placeholder="Morada completa" /></div>
+                    <div className="form-group"><label>{lang==="fr"?"Ville":"Cidade"}</label><input value={form.delivery_city} onChange={e=>setForm({...form,delivery_city:e.target.value})} /></div>
                   </>}
                 </div>
               </div>
 
               <div style={{marginTop:12,paddingTop:12,borderTop:'0.5px solid var(--border)'}}>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--blue)',marginBottom:10}}><i className="ti ti-receipt-tax" style={{marginRight:6}}/>IVA e Fiscalidade</div>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--blue)',marginBottom:10}}><i className="ti ti-receipt-tax" style={{marginRight:6}}/>{lang==="fr"?"TVA et Fiscalité":"IVA e Fiscalidade"}</div>
                 <div className="form-grid" style={{gap:8}}>
                   <div className="form-group" style={{flexDirection:'row',alignItems:'center',gap:8}}>
                     <input type="checkbox" checked={form.vat_exempt} onChange={e=>setForm({...form,vat_exempt:e.target.checked,vat_rate:e.target.checked?'0':'23'})} id="vat_exempt" />
-                    <label htmlFor="vat_exempt" style={{margin:0,cursor:'pointer',color:'var(--green)',fontWeight:500}}>✈️ Exportação / IVA 0% (recuperável)</label>
+                    <label htmlFor="vat_exempt" style={{margin:0,cursor:'pointer',color:'var(--green)',fontWeight:500}}>{lang==="fr"?"✈️ Exportation / TVA 0% (récupérable)":"✈️ Exportação / IVA 0% (recuperável)"}</label>
                   </div>
                   <div className="form-group" style={{flexDirection:'row',alignItems:'center',gap:8}}>
                     <input type="checkbox" checked={form.price_includes_vat} onChange={e=>setForm({...form,price_includes_vat:e.target.checked})} id="incl_vat" />
-                    <label htmlFor="incl_vat" style={{margin:0,cursor:'pointer'}}>Preço já inclui IVA</label>
+                    <label htmlFor="incl_vat" style={{margin:0,cursor:'pointer'}}>{lang==="fr"?"Prix TVA incluse":"Preço já inclui IVA"}</label>
                   </div>
-                  {!form.vat_exempt && <div className="form-group"><label>Taxa IVA (%)</label>
+                  {!form.vat_exempt && <div className="form-group"><label>{T[lang].vatRate}</label>
                     <select value={form.vat_rate} onChange={e=>setForm({...form,vat_rate:e.target.value})}>
                       {['0','6','13','23'].map(r=><option key={r}>{r}</option>)}
                     </select>
@@ -573,12 +573,12 @@ export default function Quotations() {
                         const totalInclVat = totalExclVat + vatAmount
                         return (
                           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 16px'}}>
-                            <div><span style={{color:'var(--text-muted)'}}>Preço unit. s/ desconto: </span>€ {unitPrice.toFixed(2)}</div>
-                            <div><span style={{color:'var(--text-muted)'}}>Após desconto ({disc}%): </span><strong>€ {priceAfterDisc.toFixed(2)}</strong></div>
-                            <div><span style={{color:'var(--text-muted)'}}>Total s/IVA ({qty} {selReq?.unit}): </span><strong style={{color:'var(--blue)'}}>€ {totalExclVat.toFixed(2)}</strong></div>
-                            {!form.vat_exempt && <div><span style={{color:'var(--text-muted)'}}>IVA {vatRate}%: </span>€ {vatAmount.toFixed(2)}</div>}
-                            {!form.vat_exempt && <div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Total c/IVA: </span><strong style={{color:'var(--amber)'}}>€ {totalInclVat.toFixed(2)}</strong></div>}
-                            {form.vat_exempt && <div style={{gridColumn:'1/-1',color:'var(--green)',fontWeight:500}}>✈️ IVA 0% — exportação — IVA recuperável: € 0,00</div>}
+                            <div><span style={{color:'var(--text-muted)'}}>{lang==="fr"?'Prix unit. sans remise: ':'Preço unit. s/ desconto: '}</span>€ {unitPrice.toFixed(2)}</div>
+                            <div><span style={{color:'var(--text-muted)'}}>{lang==="fr"?`Après remise (${disc}%): `:`Após desconto (${disc}%): `}</span><strong>€ {priceAfterDisc.toFixed(2)}</strong></div>
+                            <div><span style={{color:'var(--text-muted)'}}>{lang==="fr"?`Total HT (${qty} ${selReq?.unit}): `:`Total s/IVA (${qty} ${selReq?.unit}): `}</span><strong style={{color:'var(--blue)'}}>€ {totalExclVat.toFixed(2)}</strong></div>
+                            {!form.vat_exempt && <div><span style={{color:'var(--text-muted)'}}>{lang==="fr"?`TVA ${vatRate}%: `:`IVA ${vatRate}%: `}</span>€ {vatAmount.toFixed(2)}</div>}
+                            {!form.vat_exempt && <div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>{lang==="fr"?'Total TTC: ':'Total c/IVA: '}</span><strong style={{color:'var(--amber)'}}>€ {totalInclVat.toFixed(2)}</strong></div>}
+                            {form.vat_exempt && <div style={{gridColumn:'1/-1',color:'var(--green)',fontWeight:500}}>{lang==="fr"?"✈️ TVA 0% — exportation — TVA récupérable: € 0,00":"✈️ IVA 0% — exportação — IVA recuperável: € 0,00"}</div>}
                           </div>
                         )
                       })()}
@@ -588,18 +588,18 @@ export default function Quotations() {
               </div>
 
               <div className="form-actions">
-                <button className="btn" onClick={()=>{setShowForm(false);setEditQuote(null)}}>Cancelar</button>
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'A guardar...':editQuote?'Guardar':'Guardar Cotação'}</button>
+                <button className="btn" onClick={()=>{setShowForm(false);setEditQuote(null)}}>{T[lang].cancel}</button>
+                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving?'...':(editQuote?T[lang].save:(lang==="fr"?"Enregistrer":"Guardar Cotação"))}</button>
               </div>
             </div>
           )}
 
           <div className="card">
             <div className="card-header">
-              <span className="card-title">Cotações ({quotes.length}) {quotes.length < selReq.min_quotes && <span style={{fontSize:11,color:'var(--amber)'}}>— faltam {selReq.min_quotes - quotes.length} cotação(ões)</span>}</span>
+              <span className="card-title">Cotações ({quotes.length}) {quotes.length < selReq.min_quotes && <span style={{fontSize:11,color:'var(--amber)'}}>— {T[lang].missingQuotes} {selReq.min_quotes - quotes.length} {T[lang].quotes}</span>}</span>
               <div style={{display:'flex',gap:6}}>
-                <button className="btn" onClick={openProposal} disabled={quotes.length===0}><i className="ti ti-file-text"/>Proposta PDF</button>
-                <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditQuote(null)}}><i className="ti ti-plus"/>Adicionar</button>
+                <button className="btn" onClick={openProposal} disabled={quotes.length===0}><i className="ti ti-file-text"/>{T[lang].proposalPDF}</button>
+                <button className="btn btn-primary" onClick={()=>{setShowForm(true);setEditQuote(null)}}><i className="ti ti-plus"/>{T[lang].addQuote}</button>
               </div>
             </div>
 
@@ -650,13 +650,13 @@ export default function Quotations() {
                           <div style={{marginTop:8,padding:'6px 8px',background:daysSince>7?'var(--red-light)':'var(--green-light)',borderRadius:'var(--radius)',fontSize:11}}>
                             <div style={{fontWeight:500}}>Último contacto: há {daysSince} dia(s)</div>
                             <div style={{color:'var(--text-muted)',marginTop:1}}>{lastFollowup.contact_type} · {lastFollowup.employees?.emp_code} · {lastFollowup.notes?.slice(0,50)}</div>
-                            {lastFollowup.next_followup && <div style={{marginTop:2,color:'var(--amber)'}}>Próximo: {new Date(lastFollowup.next_followup).toLocaleDateString('pt-PT')}</div>}
+                            {lastFollowup.next_followup && <div style={{marginTop:2,color:'var(--amber)'}}>Próximo: {new Date(lastFollowup.next_followup).toLocaleDateString(lang==="fr"?'fr-FR':'pt-PT')}</div>}
                           </div>
                         )}
 
                         <div style={{marginTop:10,display:'flex',gap:6,flexWrap:'wrap'}}>
                           {!q.selected && !q.rejected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>{T[lang].approve}</button>}
-                          <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
+                          <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>{T[lang].relaunch}</button>
                           <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
                           {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>}
                         </div>
@@ -670,7 +670,7 @@ export default function Quotations() {
                                   {['Telefone','Email','WhatsApp'].map(t=><option key={t}>{t}</option>)}
                                 </select>
                               </div>
-                              <div className="form-group"><label>Próximo seguimento</label>
+                              <div className="form-group"><label>{T[lang].nextFollowup}</label>
                                 <input type="date" value={followupForm.next_followup} onChange={e=>setFollowupForm({...followupForm,next_followup:e.target.value})} />
                               </div>
                               <div className="form-group full"><label>Notas *</label>
@@ -683,7 +683,7 @@ export default function Quotations() {
                                 <div style={{fontSize:11,fontWeight:500,color:'var(--text-muted)',marginBottom:4}}>Histórico:</div>
                                 {(followups[q.id]||[]).map(f=>(
                                   <div key={f.id} style={{fontSize:11,padding:'3px 0',borderBottom:'0.5px solid var(--border)'}}>
-                                    <strong>{f.contact_type}</strong> · {f.employees?.emp_code} · {new Date(f.contact_date).toLocaleDateString('pt-PT')} — {f.notes}
+                                    <strong>{f.contact_type}</strong> · {f.employees?.emp_code} · {new Date(f.contact_date).toLocaleDateString(lang==="fr"?'fr-FR':'pt-PT')} — {f.notes}
                                   </div>
                                 ))}
                               </div>
