@@ -36,7 +36,7 @@ export default function Quotations() {
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
   const [showProposal, setShowProposal] = useState(false)
-  const [proposalConfig, setProposalConfig] = useState({ margin:0, selectedQuotes:[] })
+  const [proposalConfig, setProposalConfig] = useState({ margin:0, selectedQuotes:[], showVat:true, groupByAffaire:false, affaireId:'', lang:'pt' })
 
   useEffect(() => {
     async function load() {
@@ -154,7 +154,7 @@ export default function Quotations() {
   const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
 
   const openProposal = () => {
-    setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id) })
+    setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id), showVat:true, groupByAffaire:false, affaireId: selReq?.affaire_id||'', lang:'pt' })
     setShowProposal(true)
   }
 
@@ -529,31 +529,45 @@ export default function Quotations() {
         {/* MODAL PROPOSTA */}
         {showProposal && (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{background:'var(--bg-card)',borderRadius:'var(--radius-lg)',padding:24,width:480,maxWidth:'90vw',boxShadow:'0 8px 32px rgba(0,0,0,0.2)'}}>
+            <div style={{background:'var(--bg-card)',borderRadius:'var(--radius-lg)',padding:24,width:480,maxWidth:'90vw',boxShadow:'0 8px 32px rgba(0,0,0,0.2)',maxHeight:'90vh',overflowY:'auto'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
                 <div style={{fontWeight:700,fontSize:16}}>📄 Proposta de Fornecimento</div>
                 <button className="btn btn-sm" onClick={()=>setShowProposal(false)}><i className="ti ti-x"/></button>
               </div>
-              <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>
-                <strong>{selReq.ref_number}</strong> — {selReq.description.slice(0,60)}
+
+              {/* Tabs */}
+              <div style={{display:'flex',gap:0,marginBottom:16,borderBottom:'1px solid var(--border)'}}>
+                <div onClick={()=>setProposalConfig({...proposalConfig,groupByAffaire:false})} style={{padding:'8px 16px',cursor:'pointer',fontWeight:500,fontSize:13,borderBottom:!proposalConfig.groupByAffaire?'2px solid var(--blue)':'2px solid transparent',color:!proposalConfig.groupByAffaire?'var(--blue)':'var(--text-muted)'}}>
+                  Esta requisição
+                </div>
+                {selReq.affaire_id && <div onClick={()=>setProposalConfig({...proposalConfig,groupByAffaire:true})} style={{padding:'8px 16px',cursor:'pointer',fontWeight:500,fontSize:13,borderBottom:proposalConfig.groupByAffaire?'2px solid var(--blue)':'2px solid transparent',color:proposalConfig.groupByAffaire?'var(--blue)':'var(--text-muted)'}}>
+                  Toda a obra ({selReq.affaires?.ref_number})
+                </div>}
               </div>
 
+              {!proposalConfig.groupByAffaire && <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:12}}>
+                <strong>{selReq.ref_number}</strong> — {selReq.description.slice(0,60)}
+              </div>}
+              {proposalConfig.groupByAffaire && <div style={{fontSize:13,color:'var(--blue)',marginBottom:12,padding:'8px 12px',background:'var(--blue-light)',borderRadius:'var(--radius)'}}>
+                <i className="ti ti-building" style={{marginRight:6}}/>Obra: <strong>{selReq.affaires?.ref_number} — {selReq.affaires?.name}</strong>
+              </div>}
+
               {/* Margem */}
-              <div className="form-group" style={{marginBottom:16}}>
-                <label>Majoration (%) <span style={{fontWeight:400,fontSize:11,color:'var(--text-muted)'}}>— aplicada sobre o preço de fornecedor</span></label>
+              <div className="form-group" style={{marginBottom:14}}>
+                <label>Majoration (%) <span style={{fontWeight:400,fontSize:11,color:'var(--text-muted)'}}>— não aparece no documento</span></label>
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <input type="number" min="0" max="100" step="0.5" value={proposalConfig.margin}
                     onChange={e=>setProposalConfig({...proposalConfig,margin:e.target.value})}
                     style={{width:100}} />
                   <span style={{fontSize:12,color:'var(--text-muted)'}}>
-                    {proposalConfig.margin>0?`+${proposalConfig.margin}% sobre preço fornecedor`:'Sem majoration'}
+                    {proposalConfig.margin>0?("+"+proposalConfig.margin+"% aplicada"):'Sem majoration'}
                   </span>
                 </div>
               </div>
 
-              {/* Selecção de cotações */}
-              <div className="form-group" style={{marginBottom:20}}>
-                <label>Cotações a incluir na proposta</label>
+              {/* Cotações - só para requisição única */}
+              {!proposalConfig.groupByAffaire && <div className="form-group" style={{marginBottom:14}}>
+                <label>Cotações a incluir</label>
                 <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:6}}>
                   {quotes.map(q=>(
                     <label key={q.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',cursor:'pointer',border:"1px solid "+(proposalConfig.selectedQuotes.includes(q.id)?"var(--blue)":"var(--border)")}}>
@@ -568,16 +582,28 @@ export default function Quotations() {
                         <div style={{fontWeight:500,fontSize:13}}>{q.suppliers?.name}</div>
                         <div style={{fontSize:11,color:'var(--text-muted)'}}>€ {q.final_price}/un · {q.delivery_days||'—'} dias · {q.payment_terms||'—'}</div>
                       </div>
-                      {q.selected && <span style={{fontSize:10,background:'var(--green)',color:'white',padding:'2px 6px',borderRadius:10}}>✓ Aprovado</span>}
-                      {q.rejected && <span style={{fontSize:10,background:'var(--text-muted)',color:'white',padding:'2px 6px',borderRadius:10}}>✗ Não aprovado</span>}
+                      {q.selected && <span style={{fontSize:10,background:'var(--green)',color:'white',padding:'2px 6px',borderRadius:10}}>✓</span>}
                     </label>
                   ))}
+                </div>
+              </div>}
+
+              {/* Opções */}
+              <div style={{display:'flex',gap:16,marginBottom:16,padding:'10px 12px',background:'var(--bg)',borderRadius:'var(--radius)',flexWrap:'wrap'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13}}>
+                  <input type="checkbox" checked={proposalConfig.showVat} onChange={e=>setProposalConfig({...proposalConfig,showVat:e.target.checked})} />
+                  Mostrar coluna IVA
+                </label>
+                <div style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}>
+                  <span style={{color:'var(--text-muted)'}}>Idioma:</span>
+                  <button className={"btn btn-sm "+(proposalConfig.lang==='pt'?'btn-primary':'')} onClick={()=>setProposalConfig({...proposalConfig,lang:'pt'})} style={{fontSize:11,padding:'2px 8px'}}>PT</button>
+                  <button className={"btn btn-sm "+(proposalConfig.lang==='fr'?'btn-primary':'')} onClick={()=>setProposalConfig({...proposalConfig,lang:'fr'})} style={{fontSize:11,padding:'2px 8px'}}>FR</button>
                 </div>
               </div>
 
               <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:12,borderTop:'1px solid var(--border)'}}>
                 <button className="btn" onClick={()=>setShowProposal(false)}>Cancelar</button>
-                <button className="btn btn-primary" onClick={generatePDF} disabled={proposalConfig.selectedQuotes.length===0}>
+                <button className="btn btn-primary" onClick={proposalConfig.groupByAffaire?generatePDFByAffaire:generatePDF} disabled={!proposalConfig.groupByAffaire&&proposalConfig.selectedQuotes.length===0}>
                   <i className="ti ti-file-download"/>Gerar PDF
                 </button>
               </div>
