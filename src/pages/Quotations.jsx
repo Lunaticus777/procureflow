@@ -153,6 +153,121 @@ export default function Quotations() {
 
   const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
 
+  const generatePDFByAffaire = async () => {
+    const margin = parseFloat(proposalConfig.margin)||0
+    const isFr = (proposalConfig.lang||'pt') === 'fr'
+    const locale = isFr ? 'fr-FR' : 'pt-PT'
+    const showVat = proposalConfig.showVat
+    const today = new Date().toLocaleDateString(locale)
+    const PL = isFr ? {
+      title:'Offre de Fourniture', supplier:'Fournisseur', delay:'Délai', payment:'Paiement',
+      unitPrice:'Prix/un.', delivery:'Livraison', total:'Total', vatCol:'Total TVA',
+      vatNote:'TVA', bestPrice:'Meilleur prix', noDelivery:'Incluse',
+      clientRef:'Réf. client', ref:'Réf.', qty:'Quantité',
+      footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
+      noReqs:'Aucune réquisition pour ce chantier.',
+      summaryBest:'Meilleure option', forfait:'Forfait transport',
+    } : {
+      title:'Proposta de Fornecimento', supplier:'Fornecedor', delay:'Prazo', payment:'Pagamento',
+      unitPrice:'Preço/un.', delivery:'Entrega', total:'Total', vatCol:'Total c/IVA',
+      vatNote:'IVA', bestPrice:'Melhor preço', noDelivery:'Incluída',
+      clientRef:'Ref. cli', ref:'Ref.', qty:'Quantidade',
+      footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso · Portugal',
+      noReqs:'Sem requisições para esta obra.',
+      summaryBest:'Melhor opção', forfait:'Forfait transporte',
+    }
+
+    const affId = proposalConfig.affaireId || selReq?.affaire_id
+    if (!affId) { alert(isFr?'Sélectionnez un chantier':'Selecciona uma obra'); return }
+
+    const { data: affReqs } = await supabase
+      .from('requisitions').select('*, affaires(name,ref_number)')
+      .eq('affaire_id', affId).not('status','eq','Cancelado').order('ref_number')
+
+    if (!affReqs?.length) { alert(PL.noReqs); return }
+
+    const { data: allQuotes } = await supabase
+      .from('quotations').select('*, suppliers(name,id)')
+      .in('requisition_id', affReqs.map(r=>r.id)).eq('rejected', false).order('final_price')
+
+    const affaire = affReqs[0]?.affaires
+    const vatHeader = showVat ? '<th class="r">'+PL.vatCol+'</th>' : ''
+    let grandBestTotal = 0
+    let grandBestVat = 0
+
+    const reqSections = affReqs.map(req => {
+      const reqQuotes = (allQuotes||[]).filter(q => q.requisition_id === req.id)
+      if (!reqQuotes.length) return ''
+      const rows = reqQuotes.map(q => {
+        const base = parseFloat(q.final_price||0)
+        const delivery = parseFloat(q.delivery_price||0)
+        const forfait = parseFloat(q.transport_forfait||0)
+        const priceWithMargin = base * (1 + margin/100)
+        const totalUnit = priceWithMargin + delivery + forfait
+        const totalQty = totalUnit * parseFloat(req.quantity||1)
+        const vat = parseFloat(q.vat_rate||23)
+        const totalWithVat = totalQty * (1 + vat/100)
+        return { q, priceWithMargin, delivery, forfait, totalUnit, totalQty, vat, totalWithVat }
+      })
+      const minTotal = Math.min(...rows.map(r=>r.totalQty))
+      const bestRow = rows.find(r=>r.totalQty===minTotal)
+      grandBestTotal += bestRow?.totalQty||0
+      grandBestVat += bestRow?.totalWithVat||0
+
+      const trs = rows.map(r =>
+        '<tr><td><b>'+(r.q.suppliers?.name||'—')+'</b>'+(r.q.supplier_ref?'<br><small>'+PL.ref+' '+r.q.supplier_ref+'</small>':'')+'</td>'
+        +'<td class="c">'+(r.q.delivery_days?r.q.delivery_days+(isFr?' j':' d'):'—')+'</td>'
+        +'<td class="c">'+(r.q.payment_terms||'—')+'</td>'
+        +'<td class="r">€ '+r.priceWithMargin.toFixed(2)+'</td>'
+        +'<td class="r">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):r.forfait>0?'€ '+r.forfait.toFixed(2)+' ('+PL.forfait+')':'<i>'+PL.noDelivery+'</i>')+'</td>'
+        +'<td class="r '+(r.totalQty===minTotal?'best':'')+'"><b>€ '+r.totalQty.toFixed(2)+'</b>'+(r.totalQty===minTotal?'<br><span class="bdg">'+PL.bestPrice+'</span>':'')+'</td>'
+        +(showVat?'<td class="r">€ '+r.totalWithVat.toFixed(2)+'<br><small>'+PL.vatNote+' '+r.vat+'%</small></td>':'')
+        +'</tr>'
+      ).join('')
+
+      return '<div class="rb"><div class="rh"><div class="rr">'+req.ref_number+'</div><div class="rd">'+req.description+'</div>'
+        +'<div class="ri">'+PL.qty+': <b>'+req.quantity+' '+req.unit+'</b>'+(req.client_ref?' · '+PL.clientRef+': <b>'+req.client_ref+'</b>':'')+'</div></div>'
+        +'<table><thead><tr><th>'+PL.supplier+'</th><th class="c">'+PL.delay+'</th><th class="c">'+PL.payment+'</th>'
+        +'<th class="r">'+PL.unitPrice+'</th><th class="r">'+PL.delivery+'</th><th class="r">'+PL.total+'</th>'+vatHeader+'</tr></thead>'
+        +'<tbody>'+trs+'</tbody></table></div>'
+    }).join('')
+
+    const css = 'body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a2e;margin:0;padding:28px 32px}'
+      +'.hdr{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:12px;border-bottom:3px solid #185FA5}'
+      +'.logo{font-size:22px;font-weight:800;color:#185FA5}.addr{font-size:9px;color:#888;margin-top:3px;line-height:1.5}'
+      +'.dt{font-size:17px;font-weight:700;color:#185FA5;text-align:right}.dm{font-size:10px;color:#666;text-align:right;line-height:1.8}'
+      +'.rb{margin-bottom:18px}.rh{background:#f0f5ff;border-left:4px solid #185FA5;padding:9px 13px;margin-bottom:5px;border-radius:0 4px 4px 0}'
+      +'.rr{font-size:9px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px}'
+      +'.rd{font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:3px}.ri{font-size:10px;color:#666}'
+      +'table{width:100%;border-collapse:collapse;margin-bottom:3px}'
+      +'thead tr{background:#185FA5}th{color:#fff;padding:6px 9px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.4px}'
+      +'th.r{text-align:right}th.c{text-align:center}'
+      +'tbody tr{border-bottom:1px solid #eef1f8}tbody tr:nth-child(even){background:#f9fafc}'
+      +'td{padding:7px 9px;font-size:11px;vertical-align:middle}td.r{text-align:right}td.c{text-align:center}'
+      +'td.best{background:#edf7ed!important}.bdg{display:inline-block;background:#2d7a2d;color:#fff;font-size:8px;padding:1px 5px;border-radius:7px;margin-top:2px}'
+      +'i{font-style:italic;color:#2d7a2d;font-size:10px}small{font-size:9px;color:#888;display:block}'
+      +'.gt{background:#185FA5;color:#fff;border-radius:5px;padding:12px 18px;margin-top:14px;display:flex;justify-content:space-between;align-items:center}'
+      +'.gtl{font-size:11px;font-weight:600}.gta{font-size:17px;font-weight:800}'
+      +'.foot{margin-top:16px;padding-top:9px;border-top:1px solid #dde3f0;display:flex;justify-content:space-between;font-size:9px;color:#aaa}'
+      +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+PL.title+'</title><style>'+css+'</style></head><body>'
+      +'<div class="hdr"><div><div class="logo">AVM Lda</div><div class="addr">Estrada Nacional 226<br>6420-572 Trancoso<br>Portugal</div></div>'
+      +'<div><div class="dt">'+PL.title+'</div><div class="dm">'+(affaire?.ref_number||'')+' — '+(affaire?.name||'')+'<br>'+today+'</div></div></div>'
+      +reqSections
+      +'<div class="gt"><div class="gtl">'+PL.summaryBest+' — '+PL.total+'</div>'
+      +'<div class="gta">€ '+grandBestTotal.toFixed(2)+(showVat?' / € '+grandBestVat.toFixed(2)+' '+PL.vatCol:'')+'</div></div>'
+      +(margin>0?'<p style="font-size:9px;color:#888;font-style:italic;margin-top:8px">* '+(isFr?'Majoration de '+margin+'% appliquée.':'Margem de '+margin+'% aplicada.')+'</p>':'')
+      +'<div class="foot"><div>'+PL.footer+'</div><div>'+today+'</div></div>'
+      +'</body></html>'
+
+    const win = window.open('', '_blank')
+    if (!win) { alert(isFr?'Autorisez les popups':'Active os popups'); return }
+    win.document.write(html); win.document.close()
+    setTimeout(() => win.print(), 800)
+    setShowProposal(false)
+  }
+
   const openProposal = () => {
     setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id), showVat:true, groupByAffaire:false, affaireId: selReq?.affaire_id||'', lang:'pt' })
     setShowProposal(true)
