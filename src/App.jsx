@@ -152,7 +152,7 @@ function Layout() {
 
 export default function App() {
   // Handle password reset link directly
-  if (window.location.hash.includes('type=recovery') || window.location.hash.includes('access_token')) {
+  if (window.location.hash.includes('type=recovery')) {
     return <AuthProvider><BrowserRouter><ResetPassword /></BrowserRouter></AuthProvider>
   }
   return (
