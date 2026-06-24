@@ -36,7 +36,7 @@ export default function Quotations() {
   const [followupForm, setFollowupForm] = useState({ contact_type:'Telefone', notes:'', next_followup:'' })
   const [saving, setSaving] = useState(false)
   const [showProposal, setShowProposal] = useState(false)
-  const [proposalConfig, setProposalConfig] = useState({ margin:0, selectedQuotes:[] })
+  const [proposalConfig, setProposalConfig] = useState({ margin:0, selectedQuotes:[], showVat:true, groupByAffaire:false, affaireId:'' })
 
   useEffect(() => {
     async function load() {
@@ -151,10 +151,101 @@ export default function Quotations() {
     return matchSearch && matchAffaire && matchStatus
   })
 
+  const generatePDFByAffaire = async () => {
+    const margin = parseFloat(proposalConfig.margin)||0
+    const today = new Date().toLocaleDateString('pt-PT')
+    const showVat = proposalConfig.showVat
+
+    // Load all quotations for all reqs in selected affaire
+    const affId = proposalConfig.affaireId
+    if (!affId) { alert('Selecciona uma obra primeiro'); return }
+
+    const { data: affReqs } = await supabase
+      .from('requisitions')
+      .select('*, affaires(name,ref_number)')
+      .eq('affaire_id', affId)
+      .not('status','eq','Cancelado')
+      .order('ref_number')
+
+    if (!affReqs?.length) { alert('Sem requisições para esta obra'); return }
+
+    const { data: allQuotes } = await supabase
+      .from('quotations')
+      .select('*, suppliers(name,id)')
+      .in('requisition_id', affReqs.map(r=>r.id))
+      .eq('rejected', false)
+      .order('final_price')
+
+    const affaire = affReqs[0]?.affaires
+    const vatHeader = showVat ? '<th style="text-align:right">Total c/IVA</th>' : ''
+
+    const reqSections = affReqs.map(req => {
+      const reqQuotes = (allQuotes||[]).filter(q => q.requisition_id === req.id)
+      if (!reqQuotes.length) return ''
+
+      const rows = reqQuotes.map(q => {
+        const base = parseFloat(q.final_price||0)
+        const delivery = parseFloat(q.delivery_price||0)
+        const priceWithMargin = base * (1 + margin/100)
+        const totalUnit = priceWithMargin + delivery
+        const totalQty = totalUnit * parseFloat(req.quantity||1)
+        const vat = parseFloat(q.vat_rate||23)
+        const totalWithVat = totalQty * (1 + vat/100)
+        return { q, priceWithMargin, delivery, totalUnit, totalQty, vat, totalWithVat }
+      })
+
+      const minTotal = Math.min(...rows.map(r=>r.totalQty))
+      const tableRows = rows.map(r =>
+        '<tr class="'+(r.totalQty===minTotal?'best':'')+'">' +
+        '<td><strong>'+(r.q.suppliers?.name||'—')+'</strong></td>' +
+        '<td>'+(r.q.delivery_days?r.q.delivery_days+' dias':'—')+'</td>' +
+        '<td>'+(r.q.payment_terms||'—')+'</td>' +
+        '<td style="text-align:right">€ '+r.priceWithMargin.toFixed(2)+'</td>' +
+        '<td style="text-align:right">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):'Incluída')+'</td>' +
+        '<td style="text-align:right"><strong style="color:#185FA5">€ '+r.totalQty.toFixed(2)+'</strong>'+(r.totalQty===minTotal?'<br><span style="font-size:9px;background:#e8f4e8;color:#2d7a2d;padding:1px 5px;border-radius:8px">Melhor preço</span>':'')+'</td>' +
+        (showVat?'<td style="text-align:right">€ '+r.totalWithVat.toFixed(2)+'</td>':'') +
+        '</tr>'
+      ).join('')
+
+      return '<div style="margin-bottom:24px">'+
+        '<div style="background:#f5f8fc;border-left:3px solid #185FA5;padding:8px 12px;margin-bottom:8px;border-radius:4px">'+
+        '<strong style="font-size:12px">'+req.ref_number+' — '+req.description+'</strong>' +
+        '<span style="color:#666;font-size:10px;margin-left:12px">'+req.quantity+' '+req.unit+'</span>'+
+        (req.client_ref?'<span style="color:#888;font-size:10px;margin-left:12px">Ref. cli: '+req.client_ref+'</span>':'')+
+        '</div>'+
+        '<table><thead><tr><th>Fornecedor</th><th>Prazo</th><th>Pagamento</th><th style="text-align:right">Preço/un.</th><th style="text-align:right">Entrega</th><th style="text-align:right">Total ('+req.quantity+' '+req.unit+')</th>'+vatHeader+'</tr></thead>'+
+        '<tbody>'+tableRows+'</tbody></table></div>'
+    }).join('')
+
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta — '+( affaire?.name||'Obra')+'</title>' +
+    '<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:24px}' +
+    '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #185FA5;padding-bottom:14px}' +
+    '.logo{font-size:20px;font-weight:700;color:#185FA5}.logo-sub{font-size:10px;color:#666;margin-top:3px}' +
+    '.doc-title{text-align:right}.doc-title h2{font-size:16px;margin:0 0 4px;color:#185FA5}.doc-title p{margin:2px 0;color:#666;font-size:10px}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:8px}' +
+    'th{background:#185FA5;color:white;padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase}' +
+    'td{padding:6px 10px;border-bottom:0.5px solid #e0e0e0;font-size:11px;vertical-align:top}' +
+    'tr:nth-child(even) td{background:#f9f9f9}.best td{background:#edf7ed!important}' +
+    '.footer{margin-top:24px;border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#888}</style>' +
+    '</head><body>' +
+    '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>' +
+    '<div class="doc-title"><h2>Proposta de Fornecimento</h2><p>Data: '+today+'</p>' +
+    '<p style="font-size:13px;font-weight:700;color:#185FA5">'+( affaire?.ref_number||'')+' — '+(affaire?.name||'')+'</p></div></div>' +
+    reqSections +
+    '<div class="footer"><p>AVM Lda · Estrada Nacional 226, 6420-572 Trancoso</p></div></body></html>'
+
+    const win = window.open('', '_blank')
+    if (!win) { alert('Active os popups para gerar o PDF'); return }
+    win.document.write(html)
+    win.document.close()
+    setTimeout(() => win.print(), 600)
+    setShowProposal(false)
+  }
+
   const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
 
   const openProposal = () => {
-    setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id) })
+    setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id), showVat:true, groupByAffaire:false, affaireId: selReq?.affaire_id||'' })
     setShowProposal(true)
   }
 
@@ -167,28 +258,32 @@ export default function Quotations() {
     const rows = selectedQts.map(q => {
       const base = parseFloat(q.final_price||0)
       const delivery = parseFloat(q.delivery_price||0)
-      const baseWithMargin = base * (1 + margin/100)
-      const totalUnit = baseWithMargin + delivery
+      const priceWithMargin = base * (1 + margin/100)
+      const totalUnit = priceWithMargin + delivery
       const totalQty = totalUnit * parseFloat(selReq.quantity||1)
       const vat = parseFloat(q.vat_rate||23)
       const totalWithVat = totalQty * (1 + vat/100)
-      return { q, base, delivery, baseWithMargin, totalUnit, totalQty, vat, totalWithVat }
+      return { q, priceWithMargin, delivery, totalUnit, totalQty, vat, totalWithVat }
     })
 
     const minTotal = rows.length > 0 ? Math.min(...rows.map(r=>r.totalQty)) : 0
+    const affaireName = selReq.affaires?.name || ''
+    const affaireRef = selReq.affaires?.ref_number || ''
 
     const tableRows = rows.map(r =>
       '<tr class="'+(r.totalQty===minTotal?'best':'')+'">' +
       '<td><strong>'+(r.q.suppliers?.name||'—')+'</strong>'+(r.q.supplier_ref?'<br><span style="color:#888;font-size:9px">Ref: '+r.q.supplier_ref+'</span>':'')+'</td>' +
       '<td>'+(r.q.delivery_days?r.q.delivery_days+' dias':'—')+'</td>' +
       '<td>'+(r.q.payment_terms||'—')+'</td>' +
-      '<td style="text-align:right">'+(margin>0?'<span style="color:#888;text-decoration:line-through;font-size:10px">€ '+parseFloat(r.q.final_price||0).toFixed(2)+'</span><br>':'')+'<strong>€ '+r.baseWithMargin.toFixed(2)+'</strong>'+(margin>0?'<br><span style="font-size:9px;color:#888;font-style:italic">+'+margin+'% margem</span>':'')+'</td>' +
+      '<td style="text-align:right"><strong>€ '+r.priceWithMargin.toFixed(2)+'</strong></td>' +
       '<td style="text-align:right">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):'Incluída')+'</td>' +
       '<td style="text-align:right"><strong>€ '+r.totalUnit.toFixed(2)+'</strong></td>' +
       '<td style="text-align:right"><strong style="color:#185FA5">€ '+r.totalQty.toFixed(2)+'</strong>'+(r.totalQty===minTotal?'<br><span style="font-size:9px;background:#e8f4e8;color:#2d7a2d;padding:1px 5px;border-radius:8px">Melhor preço</span>':'')+'</td>' +
-      '<td style="text-align:right">€ '+r.totalWithVat.toFixed(2)+'<br><span style="color:#888;font-size:9px">IVA '+r.vat+'%</span></td>' +
+      (cfg.showVat?'<td style="text-align:right">€ '+r.totalWithVat.toFixed(2)+'<br><span style="color:#888;font-size:9px">IVA '+r.vat+'%</span></td>':'') +
       '</tr>'
     ).join('')
+
+    const vatHeader = cfg.showVat ? '<th style="text-align:right">Total c/IVA</th>' : ''
 
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta de Fornecimento</title>' +
     '<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:24px}' +
@@ -205,15 +300,14 @@ export default function Quotations() {
     '</head><body>' +
     '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>' +
     '<div class="doc-title"><h2>Proposta de Fornecimento</h2><p>Data: '+today+'</p><p>Ref.: '+selReq.ref_number+'</p>' +
-    (selReq.affaires?'<p>Obra: '+selReq.affaires.ref_number+' — '+selReq.affaires.name+'</p>':'') +
+    (affaireRef?'<p>Obra: '+affaireRef+' — '+affaireName+'</p>':'') +
     '</div></div>' +
     '<div class="req-box"><h3>'+selReq.description+'</h3>' +
     '<p style="margin:4px 0;font-size:11px"><span style="color:#666">Quantidade: </span><strong>'+selReq.quantity+' '+selReq.unit+'</strong>' +
     (selReq.client_ref?'&nbsp;&nbsp;&nbsp;<span style="color:#666">Ref. cliente: </span><strong>'+selReq.client_ref+'</strong>':'') +
     (selReq.notes?'<br><span style="color:#666">Especificações: </span>'+selReq.notes:'') + '</p></div>' +
-    '<table><thead><tr><th>Fornecedor</th><th>Prazo</th><th>Pagamento</th><th style="text-align:right">Preço/un.</th><th style="text-align:right">Entrega</th><th style="text-align:right">Total/un.</th><th style="text-align:right">Total ('+selReq.quantity+' '+selReq.unit+')</th><th style="text-align:right">Total c/IVA</th></tr></thead>' +
+    '<table><thead><tr><th>Fornecedor</th><th>Prazo</th><th>Pagamento</th><th style="text-align:right">Preço/un.</th><th style="text-align:right">Entrega</th><th style="text-align:right">Total/un.</th><th style="text-align:right">Total ('+selReq.quantity+' '+selReq.unit+')</th>'+vatHeader+'</tr></thead>' +
     '<tbody>'+tableRows+'</tbody></table>' +
-    (margin>0?'<p style="font-size:10px;color:#888;font-style:italic">* Preços apresentados com margem de '+margin+'% aplicada sobre valores de fornecedor.</p>':'') +
     '<div class="footer"><p>Documento gerado por ProcureFlow · AVM Lda · Estrada Nacional 226, 6420-572 Trancoso</p></div>' +
     '</body></html>'
 
@@ -534,9 +628,22 @@ export default function Quotations() {
                 <div style={{fontWeight:700,fontSize:16}}>📄 Proposta de Fornecimento</div>
                 <button className="btn btn-sm" onClick={()=>setShowProposal(false)}><i className="ti ti-x"/></button>
               </div>
-              <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>
-                <strong>{selReq.ref_number}</strong> — {selReq.description.slice(0,60)}
+              {/* Tabs */}
+              <div style={{display:'flex',gap:0,marginBottom:16,borderBottom:'1px solid var(--border)'}}>
+                <div onClick={()=>setProposalConfig({...proposalConfig,groupByAffaire:false})} style={{padding:'8px 16px',cursor:'pointer',fontWeight:500,fontSize:13,borderBottom:!proposalConfig.groupByAffaire?'2px solid var(--blue)':'2px solid transparent',color:!proposalConfig.groupByAffaire?'var(--blue)':'var(--text-muted)'}}>
+                  Esta requisição
+                </div>
+                {selReq.affaire_id && <div onClick={()=>setProposalConfig({...proposalConfig,groupByAffaire:true})} style={{padding:'8px 16px',cursor:'pointer',fontWeight:500,fontSize:13,borderBottom:proposalConfig.groupByAffaire?'2px solid var(--blue)':'2px solid transparent',color:proposalConfig.groupByAffaire?'var(--blue)':'var(--text-muted)'}}>
+                  Toda a obra ({selReq.affaires?.ref_number})
+                </div>}
               </div>
+
+              {!proposalConfig.groupByAffaire && <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>
+                <strong>{selReq.ref_number}</strong> — {selReq.description.slice(0,60)}
+              </div>}
+              {proposalConfig.groupByAffaire && <div style={{fontSize:13,color:'var(--blue)',marginBottom:16,padding:'8px 12px',background:'var(--blue-light)',borderRadius:'var(--radius)'}}>
+                <i className="ti ti-building" style={{marginRight:6}}/>Proposta completa da obra: <strong>{selReq.affaires?.ref_number} — {selReq.affaires?.name}</strong>
+              </div>}
 
               {/* Margem */}
               <div className="form-group" style={{marginBottom:16}}>
@@ -546,13 +653,13 @@ export default function Quotations() {
                     onChange={e=>setProposalConfig({...proposalConfig,margin:e.target.value})}
                     style={{width:100}} />
                   <span style={{fontSize:12,color:'var(--text-muted)'}}>
-                    {proposalConfig.margin>0?`+${proposalConfig.margin}% sobre preço fornecedor`:'Sem majoration'}
+                    {proposalConfig.margin>0?`+${proposalConfig.margin}% aplicada (não visível no documento)`:'Sem majoration'}
                   </span>
                 </div>
               </div>
 
-              {/* Selecção de cotações */}
-              <div className="form-group" style={{marginBottom:20}}>
+              {/* Selecção de cotações - only for single req */}
+              {!proposalConfig.groupByAffaire && <div className="form-group" style={{marginBottom:20}}>
                 <label>Cotações a incluir na proposta</label>
                 <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:6}}>
                   {quotes.map(q=>(
@@ -573,11 +680,19 @@ export default function Quotations() {
                     </label>
                   ))}
                 </div>
+              </div>}
+
+              {/* Opções */}
+              <div style={{display:'flex',gap:16,marginBottom:16,padding:'10px 12px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13}}>
+                  <input type="checkbox" checked={proposalConfig.showVat} onChange={e=>setProposalConfig({...proposalConfig,showVat:e.target.checked})} />
+                  Mostrar coluna IVA
+                </label>
               </div>
 
               <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:12,borderTop:'1px solid var(--border)'}}>
                 <button className="btn" onClick={()=>setShowProposal(false)}>Cancelar</button>
-                <button className="btn btn-primary" onClick={generatePDF} disabled={proposalConfig.selectedQuotes.length===0}>
+                <button className="btn btn-primary" onClick={proposalConfig.groupByAffaire?generatePDFByAffaire:generatePDF} disabled={!proposalConfig.groupByAffaire&&proposalConfig.selectedQuotes.length===0}>
                   <i className="ti ti-file-download"/>Gerar PDF
                 </button>
               </div>
