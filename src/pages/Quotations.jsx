@@ -158,148 +158,92 @@ export default function Quotations() {
   const generatePDFByAffaire = async () => {
     const margin = parseFloat(proposalConfig.margin)||0
     const pdfLang = proposalConfig.lang||'pt'
-    const today = new Date().toLocaleDateString(pdfLang==='fr'?'fr-FR':'pt-PT')
     const showVat = proposalConfig.showVat
-    const docTitle = pdfLang==='fr'?'Offre de Fourniture':'Proposta de Fornecimento'
-    const bestLabel = pdfLang==='fr'?'Meilleur prix':'Melhor preço'
+    const today = new Date().toLocaleDateString(pdfLang==='fr'?'fr-FR':'pt-PT')
+    const PL = pdfLang==='fr' ? {
+      title:'Offre de Fourniture', supplier:'Fournisseur', delay:'Délai', payment:'Paiement',
+      unitPrice:'Prix/un.', delivery:'Livraison', total:'Total', vatCol:'Total TVA',
+      vatNote:'TVA', bestPrice:'Meilleur prix', noDelivery:'Incluse',
+      clientRef:'Réf. client', footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
+      noReqs:'Aucune réquisition pour ce chantier.'
+    } : {
+      title:'Proposta de Fornecimento', supplier:'Fornecedor', delay:'Prazo', payment:'Pagamento',
+      unitPrice:'Preço/un.', delivery:'Entrega', total:'Total', vatCol:'Total c/IVA',
+      vatNote:'IVA', bestPrice:'Melhor preço', noDelivery:'Incluída',
+      clientRef:'Ref. cli', footer:'AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
+      noReqs:'Sem requisições para esta obra.'
+    }
 
-    // Load all quotations for all reqs in selected affaire
     const affId = proposalConfig.affaireId
-    if (!affId) { alert('Selecciona uma obra primeiro'); return }
+    if (!affId) { alert(pdfLang==='fr'?'Sélectionnez un chantier':'Selecciona uma obra'); return }
 
     const { data: affReqs } = await supabase
-      .from('requisitions')
-      .select('*, affaires(name,ref_number)')
-      .eq('affaire_id', affId)
-      .not('status','eq','Cancelado')
-      .order('ref_number')
+      .from('requisitions').select('*, affaires(name,ref_number)')
+      .eq('affaire_id', affId).not('status','eq','Cancelado').order('ref_number')
 
-    if (!affReqs?.length) { alert('Sem requisições para esta obra'); return }
+    if (!affReqs?.length) { alert(PL.noReqs); return }
 
     const { data: allQuotes } = await supabase
-      .from('quotations')
-      .select('*, suppliers(name,id)')
-      .in('requisition_id', affReqs.map(r=>r.id))
-      .eq('rejected', false)
-      .order('final_price')
+      .from('quotations').select('*, suppliers(name,id)')
+      .in('requisition_id', affReqs.map(r=>r.id)).eq('rejected', false).order('final_price')
 
     const affaire = affReqs[0]?.affaires
-    const vatHeader = showVat ? '<th style="text-align:right">Total c/IVA</th>' : ''
+    const vatHeader = showVat ? '<th style="text-align:right">'+PL.vatCol+'</th>' : ''
 
     const reqSections = affReqs.map(req => {
       const reqQuotes = (allQuotes||[]).filter(q => q.requisition_id === req.id)
       if (!reqQuotes.length) return ''
-
       const rows = reqQuotes.map(q => {
         const base = parseFloat(q.final_price||0)
         const delivery = parseFloat(q.delivery_price||0)
+        const forfait = parseFloat(q.transport_forfait||0)
         const priceWithMargin = base * (1 + margin/100)
-        const totalUnit = priceWithMargin + delivery
+        const totalUnit = priceWithMargin + delivery + forfait
         const totalQty = totalUnit * parseFloat(req.quantity||1)
         const vat = parseFloat(q.vat_rate||23)
         const totalWithVat = totalQty * (1 + vat/100)
-        return { q, priceWithMargin, delivery, totalUnit, totalQty, vat, totalWithVat }
+        return { q, priceWithMargin, delivery, forfait, totalUnit, totalQty, vat, totalWithVat }
       })
-
       const minTotal = Math.min(...rows.map(r=>r.totalQty))
-      const tableRows = rows.map(r =>
+      const trs = rows.map(r =>
         '<tr class="'+(r.totalQty===minTotal?'best':'')+'">' +
         '<td><strong>'+(r.q.suppliers?.name||'—')+'</strong></td>' +
-        '<td>'+(r.q.delivery_days?r.q.delivery_days+' dias':'—')+'</td>' +
+        '<td>'+(r.q.delivery_days?r.q.delivery_days+(pdfLang==='fr'?' j':' dias'):'—')+'</td>' +
         '<td>'+(r.q.payment_terms||'—')+'</td>' +
         '<td style="text-align:right">€ '+r.priceWithMargin.toFixed(2)+'</td>' +
-        '<td style="text-align:right">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):'Incluída')+'</td>' +
+        '<td style="text-align:right">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):r.forfait>0?'€ '+r.forfait.toFixed(2)+' (forfait)':PL.noDelivery)+'</td>' +
         '<td style="text-align:right"><strong style="color:#185FA5">€ '+r.totalQty.toFixed(2)+'</strong>'+(r.totalQty===minTotal?'<br><span style="font-size:9px;background:#e8f4e8;color:#2d7a2d;padding:1px 5px;border-radius:8px">'+PL.bestPrice+'</span>':'')+'</td>' +
-        (showVat?'<td style="text-align:right">€ '+r.totalWithVat.toFixed(2)+'</td>':'') +
+        (showVat?'<td style="text-align:right">€ '+r.totalWithVat.toFixed(2)+'<br><span style="color:#888;font-size:9px">'+PL.vatNote+' '+r.vat+'%</span></td>':'') +
         '</tr>'
       ).join('')
-
       return '<div style="margin-bottom:24px">'+
         '<div style="background:#f5f8fc;border-left:3px solid #185FA5;padding:8px 12px;margin-bottom:8px;border-radius:4px">'+
-        '<strong style="font-size:12px">'+req.ref_number+' — '+req.description+'</strong>' +
+        '<strong style="font-size:12px">'+req.ref_number+' — '+req.description+'</strong>'+
         '<span style="color:#666;font-size:10px;margin-left:12px">'+req.quantity+' '+req.unit+'</span>'+
-        (req.client_ref?'<span style="color:#888;font-size:10px;margin-left:12px">Ref. cli: '+req.client_ref+'</span>':'')+
+        (req.client_ref?'<span style="color:#888;font-size:10px;margin-left:12px">'+PL.clientRef+': '+req.client_ref+'</span>':'')+
         '</div>'+
-        '<table><thead><tr><th>Fornecedor</th><th>Prazo</th><th>Pagamento</th><th style="text-align:right">Preço/un.</th><th style="text-align:right">Entrega</th><th style="text-align:right">Total ('+req.quantity+' '+req.unit+')</th>'+vatHeader+'</tr></thead>'+
-        '<tbody>'+tableRows+'</tbody></table></div>'
+        '<table><thead><tr><th>'+PL.supplier+'</th><th>'+PL.delay+'</th><th>'+PL.payment+'</th>'+
+        '<th style="text-align:right">'+PL.unitPrice+'</th><th style="text-align:right">'+PL.delivery+'</th>'+
+        '<th style="text-align:right">'+PL.total+' ('+req.quantity+' '+req.unit+')</th>'+vatHeader+'</tr></thead>'+
+        '<tbody>'+trs+'</tbody></table></div>'
     }).join('')
 
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta — '+( affaire?.name||'Obra')+'</title>' +
-    '<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:24px}' +
-    '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #185FA5;padding-bottom:14px}' +
-    '.logo{font-size:20px;font-weight:700;color:#185FA5}.logo-sub{font-size:10px;color:#666;margin-top:3px}' +
-    '.doc-title{text-align:right}.doc-title h2{font-size:16px;margin:0 0 4px;color:#185FA5}.doc-title p{margin:2px 0;color:#666;font-size:10px}' +
-    'table{width:100%;border-collapse:collapse;margin-bottom:8px}' +
-    'th{background:#185FA5;color:white;padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase}' +
-    'td{padding:6px 10px;border-bottom:0.5px solid #e0e0e0;font-size:11px;vertical-align:top}' +
-    'tr:nth-child(even) td{background:#f9f9f9}.best td{background:#edf7ed!important}' +
-    '.footer{margin-top:24px;border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#888}</style>' +
-    '</head><body>' +
-    '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>' +
-    '<div class="doc-title"><h2>'+PL.title+'</h2><p>'+PL.date+': '+today+'</p>' +
-    '<p style="font-size:13px;font-weight:700;color:#185FA5">'+( affaire?.ref_number||'')+' — '+(affaire?.name||'')+'</p></div></div>' +
-    reqSections +
-    '<div class="footer"><p>AVM Lda · Estrada Nacional 226, 6420-572 Trancoso</p></div></body></html>'
+    const css = 'body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:24px}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #185FA5;padding-bottom:14px}.logo{font-size:20px;font-weight:700;color:#185FA5}.logo-sub{font-size:10px;color:#666;margin-top:3px}.doc-title{text-align:right}.doc-title h2{font-size:16px;margin:0 0 4px;color:#185FA5}.doc-title p{margin:2px 0;color:#666;font-size:10px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th{background:#185FA5;color:white;padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase}td{padding:6px 10px;border-bottom:0.5px solid #e0e0e0;font-size:11px;vertical-align:top}tr:nth-child(even) td{background:#f9f9f9}.best td{background:#edf7ed!important}.footer{margin-top:24px;border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#888}'
+
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+PL.title+' — '+(affaire?.name||'')+'</title><style>'+css+'</style></head><body>'+
+    '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>'+
+    '<div class="doc-title"><h2>'+PL.title+'</h2><p>'+today+'</p><p style="font-size:13px;font-weight:700;color:#185FA5">'+(affaire?.ref_number||'')+' — '+(affaire?.name||'')+'</p></div></div>'+
+    reqSections+
+    (margin>0?'<p style="font-size:10px;color:#888;font-style:italic">* '+(pdfLang==='fr'?'Majoration de '+margin+'% appliquée.':'Margem de '+margin+'% aplicada.')+'</p>':'')+
+    '<div class="footer"><p>'+PL.footer+'</p></div></body></html>'
 
     const win = window.open('', '_blank')
-    if (!win) { alert('Active os popups para gerar o PDF'); return }
-    win.document.write(html)
-    win.document.close()
+    if (!win) { alert(pdfLang==='fr'?'Autorisez les popups':'Active os popups'); return }
+    win.document.write(html); win.document.close()
     setTimeout(() => win.print(), 600)
     setShowProposal(false)
   }
 
-  const T = {
-    pt: {
-      title:'Cotações', search:'Pesquisar — descrição, ref., obra...', allWorks:'Todas as obras',
-      allStatus:'Todos os estados', clear:'✕ Limpar', supplier:'Fornecedor', ref:'Ref.',
-      description:'Descrição', work:'Obra', qty:'Qtd.', status:'Estado', quotes:'Cotações',
-      addQuote:'Adicionar', proposalPDF:'Proposta PDF', noQuotes:'Sem cotações. Adiciona a primeira!',
-      noReqs:'Sem requisições.', editQuote:'Editar Cotação', newQuote:'Nova Cotação',
-      unitPrice:'Preço unitário (€)', discount:'Desconto (%)', deliveryDays:'Prazo entrega (dias)',
-      deliveryCost:'Custo de entrega (€)', carrier:'Transportador', forfait:'Forfait transporte (€)',
-      validUntil:'Válido até', paymentTerms:'Condições pagamento', notes:'Notas',
-      vatRate:'IVA (%)', vatExempt:'Isento de IVA', priceInclVat:'Preço inclui IVA',
-      deliveryType:'Local de entrega', cancel:'Cancelar', save:'Guardar', approve:'✓ Aprovar e Encomendar',
-      relaunch:'Relançar', best:'💰 Melhor preço', approved:'✓ Aprovado → Encomendado', rejected:'✗ Não aprovado',
-      unitPriceLabel:'Preço unit.', discountLabel:'Desconto', finalLabel:'Final/un.', totalLabel:'Total',
-      deliveryLabel:'Entrega', paymentLabel:'Pagamento', vatLabel:'IVA', totalVatLabel:'Total c/IVA',
-      minSuppliers:'fornecedores mínimos', missingQuotes:'faltam', quotation:'cotação(ões)',
-      proposal:'Proposta de Fornecimento', thisReq:'Esta requisição', wholeWork:'Toda a obra',
-      margin:'Majoration (%)', marginNote:'aplicada (não visível no documento)', noMargin:'Sem majoration',
-      showVat:'Mostrar coluna IVA', generatePDF:'Gerar PDF', langLabel:'Idioma do documento',
-      optional:'opcional', fixedValue:'valor fixo', noCarrier:'— Sem transportador —',
-      transport:'🚛 Forfait transporte', transportCarrier:'Transportador',
-    },
-    fr: {
-      title:'Devis', search:'Rechercher — description, réf., chantier...', allWorks:'Tous les chantiers',
-      allStatus:'Tous les statuts', clear:'✕ Effacer', supplier:'Fournisseur', ref:'Réf.',
-      description:'Description', work:'Chantier', qty:'Qté.', status:'Statut', quotes:'Devis',
-      addQuote:'Ajouter', proposalPDF:'Offre PDF', noQuotes:'Aucun devis. Ajoutez le premier!',
-      noReqs:'Aucune réquisition.', editQuote:'Modifier le devis', newQuote:'Nouveau devis',
-      unitPrice:'Prix unitaire (€)', discount:'Remise (%)', deliveryDays:'Délai livraison (jours)',
-      deliveryCost:'Frais de livraison (€)', carrier:'Transporteur', forfait:'Forfait transport (€)',
-      validUntil:'Valable jusqu\'au', paymentTerms:'Conditions de paiement', notes:'Notes',
-      vatRate:'TVA (%)', vatExempt:'Exonéré de TVA', priceInclVat:'Prix TVA incluse',
-      deliveryType:'Lieu de livraison', cancel:'Annuler', save:'Enregistrer', approve:'✓ Approuver et Commander',
-      relaunch:'Relancer', best:'💰 Meilleur prix', approved:'✓ Approuvé → Commandé', rejected:'✗ Non retenu',
-      unitPriceLabel:'Prix unit.', discountLabel:'Remise', finalLabel:'Final/un.', totalLabel:'Total',
-      deliveryLabel:'Livraison', paymentLabel:'Paiement', vatLabel:'TVA', totalVatLabel:'Total TVA',
-      minSuppliers:'fournisseurs minimum', missingQuotes:'manquent', quotation:'devis',
-      proposal:'Offre de Fourniture', thisReq:'Cette réquisition', wholeWork:'Tout le chantier',
-      margin:'Majoration (%)', marginNote:'appliquée (non visible dans le document)', noMargin:'Sans majoration',
-      showVat:'Afficher colonne TVA', generatePDF:'Générer PDF', langLabel:'Langue du document',
-      optional:'optionnel', fixedValue:'valeur fixe', noCarrier:'— Sans transporteur —',
-      transport:'🚛 Forfait transport', transportCarrier:'Transporteur',
-    }
-  }
-
-  const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
-
-  const openProposal = () => {
-    setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id), showVat:true, groupByAffaire:false, affaireId: selReq?.affaire_id||'' })
-    setShowProposal(true)
-  }
 
   const generatePDF = () => {
     const cfg = proposalConfig
@@ -308,18 +252,18 @@ export default function Quotations() {
       title:'Offre de Fourniture', date:'Date', ref:'Réf.', work:'Chantier', qty:'Quantité',
       clientRef:'Réf. client', specs:'Spécifications', supplier:'Fournisseur', delay:'Délai',
       payment:'Paiement', unitPrice:'Prix/un.', delivery:'Livraison', unitTotal:'Total/un.',
-      total:'Total', vatCol:'Total TVA', bestPrice:'Meilleur prix', vatNote:'TVA',
-      marginNote:'* Prix présentés avec une majoration de', marginSuffix:'% appliquée sur les prix fournisseur.',
+      total:'Total', vatCol:'Total TVA', vatNote:'TVA', bestPrice:'Meilleur prix',
+      noDelivery:'Incluse', marginNote:'* Majoration de', marginSuffix:'% appliquée.',
       footer:'Document généré par ProcureFlow · AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
-      noCarrier:'Incluse', transport:'Forfait transport', carrier:'Transporteur'
+      carrier:'Transporteur', forfait:'Forfait transport'
     } : {
       title:'Proposta de Fornecimento', date:'Data', ref:'Ref.', work:'Obra', qty:'Quantidade',
       clientRef:'Ref. cliente', specs:'Especificações', supplier:'Fornecedor', delay:'Prazo',
       payment:'Pagamento', unitPrice:'Preço/un.', delivery:'Entrega', unitTotal:'Total/un.',
-      total:'Total', vatCol:'Total c/IVA', bestPrice:'Melhor preço', vatNote:'IVA',
-      marginNote:'* Preços apresentados com margem de', marginSuffix:'% aplicada sobre valores de fornecedor.',
+      total:'Total', vatCol:'Total c/IVA', vatNote:'IVA', bestPrice:'Melhor preço',
+      noDelivery:'Incluída', marginNote:'* Margem de', marginSuffix:'% aplicada.',
       footer:'Documento gerado por ProcureFlow · AVM Lda · Estrada Nacional 226, 6420-572 Trancoso',
-      noCarrier:'Incluída', transport:'Forfait transporte', carrier:'Transportador'
+      carrier:'Transportador', forfait:'Forfait transporte'
     }
     const selectedQts = quotes.filter(q => cfg.selectedQuotes.includes(q.id))
     const margin = parseFloat(cfg.margin)||0
@@ -328,66 +272,58 @@ export default function Quotations() {
     const rows = selectedQts.map(q => {
       const base = parseFloat(q.final_price||0)
       const delivery = parseFloat(q.delivery_price||0)
+      const forfait = parseFloat(q.transport_forfait||0)
       const priceWithMargin = base * (1 + margin/100)
-      const totalUnit = priceWithMargin + delivery
+      const totalUnit = priceWithMargin + delivery + forfait
       const totalQty = totalUnit * parseFloat(selReq.quantity||1)
       const vat = parseFloat(q.vat_rate||23)
       const totalWithVat = totalQty * (1 + vat/100)
-      return { q, priceWithMargin, delivery, totalUnit, totalQty, vat, totalWithVat }
+      return { q, priceWithMargin, delivery, forfait, totalUnit, totalQty, vat, totalWithVat }
     })
 
     const minTotal = rows.length > 0 ? Math.min(...rows.map(r=>r.totalQty)) : 0
-    const affaireName = selReq.affaires?.name || ''
-    const affaireRef = selReq.affaires?.ref_number || ''
+    const vatHeader = cfg.showVat ? '<th style="text-align:right">'+PL.vatCol+'</th>' : ''
 
     const tableRows = rows.map(r =>
       '<tr class="'+(r.totalQty===minTotal?'best':'')+'">' +
       '<td><strong>'+(r.q.suppliers?.name||'—')+'</strong>'+(r.q.supplier_ref?'<br><span style="color:#888;font-size:9px">Ref: '+r.q.supplier_ref+'</span>':'')+'</td>' +
-      '<td>'+(r.q.delivery_days?r.q.delivery_days+' dias':'—')+'</td>' +
+      '<td>'+(r.q.delivery_days?r.q.delivery_days+(pdfLang==='fr'?' j':' dias'):'—')+'</td>' +
       '<td>'+(r.q.payment_terms||'—')+'</td>' +
       '<td style="text-align:right"><strong>€ '+r.priceWithMargin.toFixed(2)+'</strong></td>' +
-      '<td style="text-align:right">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):'Incluída')+'</td>' +
+      '<td style="text-align:right">'+(r.delivery>0?'€ '+r.delivery.toFixed(2):r.forfait>0?'€ '+r.forfait.toFixed(2)+' ('+PL.forfait+')':PL.noDelivery)+'</td>' +
       '<td style="text-align:right"><strong>€ '+r.totalUnit.toFixed(2)+'</strong></td>' +
       '<td style="text-align:right"><strong style="color:#185FA5">€ '+r.totalQty.toFixed(2)+'</strong>'+(r.totalQty===minTotal?'<br><span style="font-size:9px;background:#e8f4e8;color:#2d7a2d;padding:1px 5px;border-radius:8px">'+PL.bestPrice+'</span>':'')+'</td>' +
       (cfg.showVat?'<td style="text-align:right">€ '+r.totalWithVat.toFixed(2)+'<br><span style="color:#888;font-size:9px">'+PL.vatNote+' '+r.vat+'%</span></td>':'') +
       '</tr>'
     ).join('')
 
-    const vatHeader = cfg.showVat ? '<th style="text-align:right">'+PL.vatCol+'</th>' : ''
+    const css = 'body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:24px}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #185FA5;padding-bottom:14px}.logo{font-size:20px;font-weight:700;color:#185FA5}.logo-sub{font-size:10px;color:#666;margin-top:3px}.doc-title{text-align:right}.doc-title h2{font-size:16px;margin:0 0 4px;color:#185FA5}.doc-title p{margin:2px 0;color:#666;font-size:10px}.req-box{background:#f5f8fc;border-left:3px solid #185FA5;padding:10px 14px;margin-bottom:20px;border-radius:4px}.req-box h3{margin:0 0 6px;font-size:13px;color:#185FA5}table{width:100%;border-collapse:collapse;margin-bottom:20px}th{background:#185FA5;color:white;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px}td{padding:8px 10px;border-bottom:0.5px solid #e0e0e0;font-size:11px;vertical-align:top}tr:nth-child(even) td{background:#f9f9f9}.best td{background:#edf7ed!important}.footer{margin-top:30px;border-top:1px solid #ddd;padding-top:12px;font-size:10px;color:#888}'
 
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposta de Fornecimento</title>' +
-    '<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:0;padding:24px}' +
-    '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #185FA5;padding-bottom:14px}' +
-    '.logo{font-size:20px;font-weight:700;color:#185FA5}.logo-sub{font-size:10px;color:#666;margin-top:3px}' +
-    '.doc-title{text-align:right}.doc-title h2{font-size:16px;margin:0 0 4px;color:#185FA5}.doc-title p{margin:2px 0;color:#666;font-size:10px}' +
-    '.req-box{background:#f5f8fc;border-left:3px solid #185FA5;padding:10px 14px;margin-bottom:20px;border-radius:4px}' +
-    '.req-box h3{margin:0 0 6px;font-size:13px;color:#185FA5}' +
-    'table{width:100%;border-collapse:collapse;margin-bottom:20px}' +
-    'th{background:#185FA5;color:white;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px}' +
-    'td{padding:8px 10px;border-bottom:0.5px solid #e0e0e0;font-size:11px;vertical-align:top}' +
-    'tr:nth-child(even) td{background:#f9f9f9}.best td{background:#edf7ed!important}' +
-    '.footer{margin-top:30px;border-top:1px solid #ddd;padding-top:12px;font-size:10px;color:#888}</style>' +
-    '</head><body>' +
-    '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>' +
-    '<div class="doc-title"><h2>'+PL.title+'</h2><p>'+PL.date+': '+today+'</p><p>Ref.: '+selReq.ref_number+'</p>' +
-    (affaireRef?'<p>Obra: '+affaireRef+' — '+affaireName+'</p>':'') +
-    '</div></div>' +
-    '<div class="req-box"><h3>'+selReq.description+'</h3>' +
-    '<p style="margin:4px 0;font-size:11px"><span style="color:#666">Quantidade: </span><strong>'+selReq.quantity+' '+selReq.unit+'</strong>' +
-    (selReq.client_ref?'&nbsp;&nbsp;&nbsp;<span style="color:#666">Ref. cliente: </span><strong>'+selReq.client_ref+'</strong>':'') +
-    (selReq.notes?'<br><span style="color:#666">Especificações: </span>'+selReq.notes:'') + '</p></div>' +
-    '<table><thead><tr><th>'+PL.supplier+'</th><th>'+PL.delay+'</th><th>'+PL.payment+'</th><th style="text-align:right">'+PL.unitPrice+'</th><th style="text-align:right">'+PL.delivery+'</th><th style="text-align:right">'+PL.unitTotal+'</th><th style="text-align:right">'+PL.total+' ('+selReq.quantity+' '+selReq.unit+')</th>'+vatHeader+'</tr></thead>' +
-    '<tbody>'+tableRows+'</tbody></table>' +
-    '<div class="footer"><p>'+PL.footer+'</p></div>' +
-    '</body></html>'
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+PL.title+'</title><style>'+css+'</style></head><body>'+
+    '<div class="header"><div><div class="logo">AVM Lda</div><div class="logo-sub">Estrada Nacional 226, 6420-572 Trancoso</div></div>'+
+    '<div class="doc-title"><h2>'+PL.title+'</h2><p>'+PL.date+': '+today+'</p><p>'+PL.ref+': '+selReq.ref_number+'</p>'+
+    (selReq.affaires?'<p>'+PL.work+': '+selReq.affaires.ref_number+' — '+selReq.affaires.name+'</p>':'')+
+    '</div></div>'+
+    '<div class="req-box"><h3>'+selReq.description+'</h3>'+
+    '<p style="margin:4px 0;font-size:11px"><span style="color:#666">'+PL.qty+': </span><strong>'+selReq.quantity+' '+selReq.unit+'</strong>'+
+    (selReq.client_ref?'&nbsp;&nbsp;&nbsp;<span style="color:#666">'+PL.clientRef+': </span><strong>'+selReq.client_ref+'</strong>':'')+
+    (selReq.notes?'<br><span style="color:#666">'+PL.specs+': </span>'+selReq.notes:'')+
+    '</p></div>'+
+    '<table><thead><tr><th>'+PL.supplier+'</th><th>'+PL.delay+'</th><th>'+PL.payment+'</th>'+
+    '<th style="text-align:right">'+PL.unitPrice+'</th><th style="text-align:right">'+PL.delivery+'</th>'+
+    '<th style="text-align:right">'+PL.unitTotal+'</th><th style="text-align:right">'+PL.total+' ('+selReq.quantity+' '+selReq.unit+')</th>'+vatHeader+'</tr></thead>'+
+    '<tbody>'+tableRows+'</tbody></table>'+
+    (margin>0?'<p style="font-size:10px;color:#888;font-style:italic">'+PL.marginNote+' '+margin+'% '+PL.marginSuffix+'</p>':'')+
+    '<div class="footer"><p>'+PL.footer+'</p></div></body></html>'
 
     const win = window.open('', '_blank')
-    if (!win) { alert('Active os popups para gerar o PDF'); return }
-    win.document.write(html)
-    win.document.close()
+    if (!win) { alert(pdfLang==='fr'?'Autorisez les popups':'Active os popups'); return }
+    win.document.write(html); win.document.close()
     setTimeout(() => win.print(), 600)
     setShowProposal(false)
   }
+
+  const STATUS_CL = {'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled'}
 
   return (
     <div style={{display:'flex',height:'calc(100vh - 56px)',overflow:'hidden'}}>
