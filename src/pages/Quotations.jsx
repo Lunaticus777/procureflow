@@ -57,6 +57,11 @@ export default function Quotations() {
     setLoading(true)
     const { data } = await supabase.from('quotations').select('*, suppliers(name), employees(full_name, emp_code)').eq('requisition_id', reqId).order('final_price')
     setQuotes(data||[])
+    // Load order refs for approved quotes
+    if (data?.some(q => q.selected)) {
+      const { data: orders } = await supabase.from('orders').select('id,ref_number,status,quotation_id').eq('requisition_id', reqId)
+      if (orders?.length) setOrdersByQuote(Object.fromEntries(orders.map(o => [o.quotation_id, o])))
+    }
     setLoading(false)
   }
 
@@ -559,7 +564,12 @@ export default function Quotations() {
                       <div key={q.id} className={`quote-card ${i===0&&!q.selected&&!q.rejected?'best':''}`} style={{opacity:q.rejected?0.5:1,filter:q.rejected?'grayscale(80%)':'none'}}>
                         {q.rejected && <div style={{marginBottom:8}}><span style={{background:'var(--text-muted)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✗ Não aprovado</span></div>}
                         {i===0&&!q.selected&&!q.rejected && <div style={{marginBottom:8}}><span style={{background:'var(--blue)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>💰 Melhor preço</span></div>}
-                        {q.selected && <div style={{marginBottom:8}}><span style={{background:'var(--green)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✓ Aprovado → Encomendado</span></div>}
+                        {q.selected && <div style={{marginBottom:8,display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                        <span style={{background:'var(--green)',color:'white',fontSize:10,padding:'2px 8px',borderRadius:10}}>✓ Aprovado → Encomendado</span>
+                        {ordersByQuote[q.id] && <a href="/orders" style={{fontSize:10,background:'var(--blue-light)',color:'var(--blue)',padding:'2px 8px',borderRadius:10,textDecoration:'none',fontWeight:500,cursor:'pointer'}} onClick={e=>{e.preventDefault();window.location.href='/orders'}}>
+                          📦 {ordersByQuote[q.id].ref_number} · {ordersByQuote[q.id].status}
+                        </a>}
+                      </div>}
                         <div style={{fontWeight:600,marginBottom:10,fontSize:14}}>{q.suppliers?.name}</div>
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Preço unit.</span><span>€ {parseFloat(q.unit_price).toFixed(2)}</span></div>
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Desconto</span><span style={{color:'var(--green)'}}>{q.discount_pct}%</span></div>
