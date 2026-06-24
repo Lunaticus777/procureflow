@@ -99,7 +99,7 @@ export default function Orders() {
                 <thead><tr><th>Enc.</th><th>Material</th><th>Obra</th><th>Fornecedor</th><th>Valor</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                   {filtered.map(o=>(
-                    <tr key={o.id} style={{cursor:'pointer',background:selected?.id===o.id?'var(--bg)':''}} onClick={()=>selectOrder(o)}>
+                    <tr key={o.id} style={{cursor:'pointer',background:selected?.id===o.id?'var(--bg)':''}} onClick={()=>selected?.id===o.id?setSelected(null):selectOrder(o)}>
                       <td style={{fontWeight:500}}>{o.ref_number}</td>
                       <td style={{fontSize:12,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.requisitions?.description}</td>
                       <td style={{fontSize:11}}><div style={{color:'var(--blue)'}}>{o.requisitions?.affaires?.ref_number||'—'}</div>{o.delivery_type&&o.delivery_type!=='Obra (morada da obra)'&&<div style={{fontSize:10,color:'var(--green)'}}>🚚 {o.delivery_type}</div>}</td>

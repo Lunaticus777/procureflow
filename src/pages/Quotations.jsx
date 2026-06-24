@@ -393,7 +393,7 @@ export default function Quotations() {
                 </thead>
                 <tbody>
                   {filteredReqs.map(r=>(
-                    <tr key={r.id} onClick={()=>selectReq(r)}
+                    <tr key={r.id} onClick={()=>selReq?.id===r.id?setSelReq(null):selectReq(r)}
                       style={{cursor:'pointer',borderBottom:'0.5px solid var(--border)',background:selReq?.id===r.id?'var(--blue-light)':'',borderLeft:"3px solid "+(selReq?.id===r.id?"var(--blue)":r.status==="Aprovado"?"var(--green)":r.status==="Em cotação"?"var(--amber)":"transparent")}}>
                       <td style={{padding:'8px 10px',fontFamily:'monospace',fontSize:11,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{r.ref_number}</td>
                       <td style={{padding:'8px 10px',maxWidth:200}}>
