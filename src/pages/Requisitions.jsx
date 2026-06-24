@@ -49,6 +49,7 @@ export default function Requisitions() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState('cards') // 'cards' | 'list'
+  const [formErrors, setFormErrors] = useState({})
   const [imagePreview, setImagePreview] = useState(null)
   const fileRef = useRef()
 
