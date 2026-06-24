@@ -37,17 +37,22 @@ export default function Quotations() {
   const [saving, setSaving] = useState(false)
   const [showProposal, setShowProposal] = useState(false)
   const [proposalConfig, setProposalConfig] = useState({ margin:0, selectedQuotes:[], showVat:true, groupByAffaire:false, affaireId:'', lang:'pt' })
+  const [carriers, setCarriers] = useState([])
+  const [lang, setLang] = useState('pt')
+  const [ordersByQuote, setOrdersByQuote] = useState({})
 
   useEffect(() => {
     async function load() {
-      const [{ data: rData }, { data: affData }, { data: sData }] = await Promise.all([
+      const [{ data: rData }, { data: affData }, { data: sData }, { data: cData }] = await Promise.all([
         supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Cancelado').order('created_at',{ascending:false}),
         supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
         supabase.from('suppliers').select('*').eq('active',true).order('name'),
+        supabase.from('carriers').select('id,name,phone,base_price,price_type,currency').eq('active',true).order('name'),
       ])
       setReqs(rData||[])
       setAffaires(affData||[])
       setSuppliers(sData||[])
+      setCarriers(cData||[])
       setLoading(false)
     }
     load()
