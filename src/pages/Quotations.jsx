@@ -241,41 +241,7 @@ export default function Quotations() {
         '</tr></thead><tbody>'+trs+'</tbody></table></div>'
     }).join('')
 
-    const css = `
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a2e; padding: 28px 32px; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 3px solid #185FA5; }
-      .logo { font-size: 22px; font-weight: 800; color: #185FA5; }
-      .address { font-size: 9px; color: #888; margin-top: 4px; line-height: 1.5; }
-      .doc-block { text-align: right; }
-      .doc-title { font-size: 18px; font-weight: 700; color: #185FA5; }
-      .work-title { font-size: 13px; font-weight: 700; color: #333; margin-top: 4px; }
-      .doc-meta { font-size: 10px; color: #666; margin-top: 4px; line-height: 1.8; }
-      .req-block { margin-bottom: 20px; }
-      .req-header { background: #f0f5ff; border-left: 4px solid #185FA5; padding: 10px 14px; margin-bottom: 6px; border-radius: 0 4px 4px 0; }
-      .req-ref { font-size: 10px; font-weight: 700; color: #185FA5; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
-      .req-desc { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
-      .req-info { font-size: 10px; color: #666; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-      thead tr { background: #185FA5; }
-      thead th { color: white; padding: 7px 10px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-      thead th.right { text-align: right; } thead th.center { text-align: center; }
-      tbody tr { border-bottom: 1px solid #eef1f8; }
-      tbody tr:nth-child(even) { background: #f9fafc; }
-      td { padding: 8px 10px; font-size: 11px; vertical-align: middle; }
-      td.right { text-align: right; } td.center { text-align: center; }
-      .supplier-name { font-weight: 600; }
-      .meta { font-size: 9px; color: #888; margin-top: 2px; }
-      .incl { font-size: 10px; color: #2d7a2d; font-style: italic; }
-      .total-cell { min-width: 100px; }
-      .best-total { background: #edf7ed !important; }
-      .best-badge { display: inline-block; background: #2d7a2d; color: white; font-size: 8px; padding: 2px 5px; border-radius: 8px; margin-top: 2px; }
-      .grand-total { background: #185FA5; color: white; border-radius: 6px; padding: 14px 20px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }
-      .grand-total .label { font-size: 12px; font-weight: 600; }
-      .grand-total .amount { font-size: 18px; font-weight: 800; }
-      .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #dde3f0; font-size: 9px; color: #aaa; display: flex; justify-content: space-between; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-    `
+    const css = '      * { box-sizing: border-box; margin: 0; padding: 0; }       body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a2e; padding: 28px 32px; }       .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 14px; border-bottom: 3px solid #185FA5; }       .logo { font-size: 22px; font-weight: 800; color: #185FA5; }       .address { font-size: 9px; color: #888; margin-top: 4px; line-height: 1.5; }       .doc-block { text-align: right; }       .doc-title { font-size: 18px; font-weight: 700; color: #185FA5; }       .work-title { font-size: 13px; font-weight: 700; color: #333; margin-top: 4px; }       .doc-meta { font-size: 10px; color: #666; margin-top: 4px; line-height: 1.8; }       .req-block { margin-bottom: 20px; }       .req-header { background: #f0f5ff; border-left: 4px solid #185FA5; padding: 10px 14px; margin-bottom: 6px; border-radius: 0 4px 4px 0; }       .req-ref { font-size: 10px; font-weight: 700; color: #185FA5; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }       .req-desc { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }       .req-info { font-size: 10px; color: #666; }       table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }       thead tr { background: #185FA5; }       thead th { color: white; padding: 7px 10px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }       thead th.right { text-align: right; } thead th.center { text-align: center; }       tbody tr { border-bottom: 1px solid #eef1f8; }       tbody tr:nth-child(even) { background: #f9fafc; }       td { padding: 8px 10px; font-size: 11px; vertical-align: middle; }       td.right { text-align: right; } td.center { text-align: center; }       .supplier-name { font-weight: 600; }       .meta { font-size: 9px; color: #888; margin-top: 2px; }       .incl { font-size: 10px; color: #2d7a2d; font-style: italic; }       .total-cell { min-width: 100px; }       .best-total { background: #edf7ed !important; }       .best-badge { display: inline-block; background: #2d7a2d; color: white; font-size: 8px; padding: 2px 5px; border-radius: 8px; margin-top: 2px; }       .grand-total { background: #185FA5; color: white; border-radius: 6px; padding: 14px 20px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }       .grand-total .label { font-size: 12px; font-weight: 600; }       .grand-total .amount { font-size: 18px; font-weight: 800; }       .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #dde3f0; font-size: 9px; color: #aaa; display: flex; justify-content: space-between; }       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'
 
     const html = '<!DOCTYPE html><html lang="'+pdfLang+'"><head><meta charset="UTF-8"><title>'+PL.title+' — '+(affaire?.name||'')+'</title><style>'+css+'</style></head><body>'+
     '<div class="header">'+
@@ -393,58 +359,7 @@ export default function Quotations() {
       '</table></div>'
       : ''
 
-    const css = `
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Arial', sans-serif; font-size: 11px; color: #1a1a2e; background: white; padding: 0; }
-      .page { padding: 28px 32px; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 3px solid #185FA5; }
-      .logo-block .logo { font-size: 22px; font-weight: 800; color: #185FA5; letter-spacing: -0.5px; }
-      .logo-block .address { font-size: 9px; color: #888; margin-top: 4px; line-height: 1.5; }
-      .doc-block { text-align: right; }
-      .doc-block .doc-title { font-size: 18px; font-weight: 700; color: #185FA5; margin-bottom: 6px; }
-      .doc-block .doc-meta { font-size: 10px; color: #666; line-height: 1.8; }
-      .doc-block .doc-ref { font-size: 11px; font-weight: 600; color: #333; }
-      .work-badge { display: inline-block; background: #e8f0fb; color: #185FA5; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; margin-top: 4px; }
-      .req-section { background: #f8faff; border: 1px solid #d0ddf5; border-left: 4px solid #185FA5; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; }
-      .req-title { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
-      .req-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 10px; color: #555; }
-      .req-meta .meta-item { display: flex; flex-direction: column; }
-      .req-meta .meta-label { color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
-      .req-meta .meta-value { font-weight: 600; color: #333; }
-      .req-specs { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e8f5; font-size: 10px; color: #555; }
-      .req-specs span { color: #888; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-      thead tr { background: #185FA5; }
-      thead th { color: white; padding: 9px 12px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
-      thead th.right, thead th.center { text-align: right; }
-      thead th.center { text-align: center; }
-      tbody tr { border-bottom: 1px solid #eef1f8; }
-      tbody tr:nth-child(even) { background: #f9fafc; }
-      td { padding: 10px 12px; font-size: 11px; vertical-align: middle; }
-      td.right { text-align: right; }
-      td.center { text-align: center; }
-      td.bold { font-weight: 600; }
-      .supplier-cell { min-width: 140px; }
-      .supplier-name { font-weight: 600; font-size: 12px; color: #1a1a2e; }
-      .meta { font-size: 9px; color: #888; margin-top: 2px; }
-      .incl { font-size: 10px; color: #2d7a2d; font-style: italic; }
-      .total-cell { min-width: 110px; }
-      .best-total { background: #edf7ed !important; }
-      .best-badge { display: inline-block; background: #2d7a2d; color: white; font-size: 8px; padding: 2px 6px; border-radius: 10px; margin-top: 3px; font-weight: 600; }
-      .summary-box { background: #f8faff; border: 1px solid #d0ddf5; border-radius: 8px; padding: 16px 20px; margin-top: 8px; margin-bottom: 20px; }
-      .summary-title { font-size: 12px; font-weight: 700; color: #185FA5; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-      .summary-table { margin-bottom: 0; }
-      .summary-table thead tr { background: #e8f0fb; }
-      .summary-table thead th { color: #185FA5; }
-      .summary-best td { background: #edf7ed; font-weight: 600; }
-      .best-badge-sm { display: inline-block; background: #2d7a2d; color: white; font-size: 8px; padding: 1px 5px; border-radius: 8px; margin-left: 4px; }
-      .summary-footer td { border-top: 2px solid #185FA5; padding-top: 8px; font-size: 11px; }
-      .margin-note { font-size: 9px; color: #888; font-style: italic; margin-bottom: 12px; }
-      .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #dde3f0; display: flex; justify-content: space-between; align-items: center; }
-      .footer-text { font-size: 9px; color: #aaa; }
-      .footer-page { font-size: 9px; color: #aaa; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-    `
+    const css = '      * { box-sizing: border-box; margin: 0; padding: 0; }       body { font-family: \'Arial\', sans-serif; font-size: 11px; color: #1a1a2e; background: white; padding: 0; }       .page { padding: 28px 32px; }       .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 3px solid #185FA5; }       .logo-block .logo { font-size: 22px; font-weight: 800; color: #185FA5; letter-spacing: -0.5px; }       .logo-block .address { font-size: 9px; color: #888; margin-top: 4px; line-height: 1.5; }       .doc-block { text-align: right; }       .doc-block .doc-title { font-size: 18px; font-weight: 700; color: #185FA5; margin-bottom: 6px; }       .doc-block .doc-meta { font-size: 10px; color: #666; line-height: 1.8; }       .doc-block .doc-ref { font-size: 11px; font-weight: 600; color: #333; }       .work-badge { display: inline-block; background: #e8f0fb; color: #185FA5; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 12px; margin-top: 4px; }       .req-section { background: #f8faff; border: 1px solid #d0ddf5; border-left: 4px solid #185FA5; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; }       .req-title { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }       .req-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 10px; color: #555; }       .req-meta .meta-item { display: flex; flex-direction: column; }       .req-meta .meta-label { color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }       .req-meta .meta-value { font-weight: 600; color: #333; }       .req-specs { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e8f5; font-size: 10px; color: #555; }       .req-specs span { color: #888; }       table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }       thead tr { background: #185FA5; }       thead th { color: white; padding: 9px 12px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }       thead th.right, thead th.center { text-align: right; }       thead th.center { text-align: center; }       tbody tr { border-bottom: 1px solid #eef1f8; }       tbody tr:nth-child(even) { background: #f9fafc; }       td { padding: 10px 12px; font-size: 11px; vertical-align: middle; }       td.right { text-align: right; }       td.center { text-align: center; }       td.bold { font-weight: 600; }       .supplier-cell { min-width: 140px; }       .supplier-name { font-weight: 600; font-size: 12px; color: #1a1a2e; }       .meta { font-size: 9px; color: #888; margin-top: 2px; }       .incl { font-size: 10px; color: #2d7a2d; font-style: italic; }       .total-cell { min-width: 110px; }       .best-total { background: #edf7ed !important; }       .best-badge { display: inline-block; background: #2d7a2d; color: white; font-size: 8px; padding: 2px 6px; border-radius: 10px; margin-top: 3px; font-weight: 600; }       .summary-box { background: #f8faff; border: 1px solid #d0ddf5; border-radius: 8px; padding: 16px 20px; margin-top: 8px; margin-bottom: 20px; }       .summary-title { font-size: 12px; font-weight: 700; color: #185FA5; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }       .summary-table { margin-bottom: 0; }       .summary-table thead tr { background: #e8f0fb; }       .summary-table thead th { color: #185FA5; }       .summary-best td { background: #edf7ed; font-weight: 600; }       .best-badge-sm { display: inline-block; background: #2d7a2d; color: white; font-size: 8px; padding: 1px 5px; border-radius: 8px; margin-left: 4px; }       .summary-footer td { border-top: 2px solid #185FA5; padding-top: 8px; font-size: 11px; }       .margin-note { font-size: 9px; color: #888; font-style: italic; margin-bottom: 12px; }       .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #dde3f0; display: flex; justify-content: space-between; align-items: center; }       .footer-text { font-size: 9px; color: #aaa; }       .footer-page { font-size: 9px; color: #aaa; }       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }'
 
     const html = `<!DOCTYPE html><html lang="${pdfLang}"><head><meta charset="UTF-8">
       <title>${PL.title} — ${selReq.ref_number}</title>
