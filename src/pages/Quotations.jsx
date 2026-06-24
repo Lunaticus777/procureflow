@@ -370,34 +370,28 @@ export default function Quotations() {
     }).join('')
 
     // Summary box
-    const summaryHtml = rows.length > 1 ? `
-      <div class="summary-box">
-        <div class="summary-title">${PL.summary}</div>
-        <table class="summary-table">
-          <thead><tr>
-            <th>${PL.supplier}</th>
-            <th class="right">${PL.total} (${selReq.quantity} ${selReq.unit})</th>
-            ${cfg.showVat?'<th class="right">'+PL.vatCol+'</th>':''}
-          </tr></thead>
-          <tbody>
-            ${rows.sort((a,b)=>a.totalQty-b.totalQty).map(r=>
-              '<tr class="'+(r.totalQty===minTotal?'summary-best':'')+'">'+
-              '<td>'+(r.q.suppliers?.name||'—')+(r.totalQty===minTotal?' <span class="best-badge-sm">'+PL.bestPrice+'</span>':'')+'</td>'+
-              '<td class="right bold">€ '+r.totalQty.toFixed(2)+'</td>'+
-              (cfg.showVat?'<td class="right">€ '+r.totalWithVat.toFixed(2)+'</td>':'')+
-              '</tr>'
-            ).join('')}
-          </tbody>
-          ${rows.length>0&&bestRow?`<tfoot>
-            <tr class="summary-footer">
-              <td>${PL.summaryBest}: <strong>${bestRow.q.suppliers?.name}</strong></td>
-              <td class="right"><strong>€ ${bestRow.totalQty.toFixed(2)}</strong></td>
-              ${cfg.showVat?'<td class="right"><strong>€ '+bestRow.totalWithVat.toFixed(2)+'</strong></td>':''}
-            </tr>
-          </tfoot>`:''}
-        </table>
-      </div>
-    ` : ''
+    const summaryRows = rows.slice().sort((a,b)=>a.totalQty-b.totalQty).map(r=>
+      '<tr class="'+(r.totalQty===minTotal?'summary-best':'')+'">'+
+      '<td>'+(r.q.suppliers?.name||'—')+(r.totalQty===minTotal?' <span class="best-badge-sm">'+PL.bestPrice+'</span>':'')+'</td>'+
+      '<td class="right bold">€ '+r.totalQty.toFixed(2)+'</td>'+
+      (cfg.showVat?'<td class="right">€ '+r.totalWithVat.toFixed(2)+'</td>':'')+
+      '</tr>'
+    ).join('')
+    const summaryFoot = bestRow ?
+      '<tfoot><tr class="summary-footer">'+
+      '<td>'+PL.summaryBest+': <strong>'+(bestRow.q.suppliers?.name||'')+'</strong></td>'+
+      '<td class="right"><strong>€ '+bestRow.totalQty.toFixed(2)+'</strong></td>'+
+      (cfg.showVat?'<td class="right"><strong>€ '+bestRow.totalWithVat.toFixed(2)+'</strong></td>':'')+
+      '</tr></tfoot>' : ''
+    const vatTh = cfg.showVat ? '<th class="right">'+PL.vatCol+'</th>' : ''
+    const summaryHtml = rows.length > 1 ?
+      '<div class="summary-box">'+
+      '<div class="summary-title">'+PL.summary+'</div>'+
+      '<table class="summary-table">'+
+      '<thead><tr><th>'+PL.supplier+'</th><th class="right">'+PL.total+' ('+selReq.quantity+' '+selReq.unit+')</th>'+vatTh+'</tr></thead>'+
+      '<tbody>'+summaryRows+'</tbody>'+summaryFoot+
+      '</table></div>'
+      : ''
 
     const css = `
       * { box-sizing: border-box; margin: 0; padding: 0; }
