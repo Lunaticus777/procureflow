@@ -76,8 +76,9 @@ export default function Orders() {
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
-    <div className="two-col">
-      <div className="card">
+    <div style={{display:'flex',height:'calc(100vh - 56px)',overflow:'hidden'}}>
+      <div style={{width:selected?'50%':'100%',flexShrink:0,display:'flex',flexDirection:'column',borderRight:selected?'1px solid var(--border)':'none',transition:'width 0.2s',overflowY:'auto'}}>
+      <div className="card" style={{margin:0,borderRadius:0,border:'none',flex:1}}>
         <div className="card-header"><span className="card-title">Encomendas ({filtered.length}{filtered.length!==orders.length?` / ${orders.length}`:''})</span></div>
         <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:140,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
@@ -114,10 +115,10 @@ export default function Orders() {
               </table>
             </div>
         }
-      </div>
-
+      </div></div>
       {selected && (
-        <div>
+        <div style={{flex:1,minWidth:0,overflowY:'auto',background:'var(--bg)',padding:'0'}}>
+        <div style={{padding:'4px'}}>
           <div className="card">
             <div className="card-header">
               <div>
@@ -201,6 +202,7 @@ export default function Orders() {
               ))
             }
           </div>
+        </div>
         </div>
       )}
     </div>
