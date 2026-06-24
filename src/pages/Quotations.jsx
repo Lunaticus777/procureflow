@@ -323,6 +323,11 @@ export default function Quotations() {
     setShowProposal(false)
   }
 
+  const openProposal = () => {
+    setProposalConfig({ margin: 0, selectedQuotes: quotes.map(q=>q.id), showVat:true, groupByAffaire:false, affaireId: selReq?.affaire_id||'', lang: lang })
+    setShowProposal(true)
+  }
+
   const T = {
     pt: {
       title:'Cotações', search:'Pesquisar — descrição, ref., obra...', allWorks:'Todas as obras',
