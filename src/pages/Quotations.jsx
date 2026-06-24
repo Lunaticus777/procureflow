@@ -269,7 +269,7 @@ export default function Quotations() {
                 <tbody>
                   {filteredReqs.map(r=>(
                     <tr key={r.id} onClick={()=>selectReq(r)}
-                      style={{cursor:'pointer',borderBottom:'0.5px solid var(--border)',background:selReq?.id===r.id?'var(--blue-light)':'',borderLeft:`3px solid ${selReq?.id===r.id?'var(--blue)':r.status==='Aprovado'?'var(--green)':r.status==='Em cotação'?'var(--amber)':'transparent'}`}}>
+                      style={{cursor:'pointer',borderBottom:'0.5px solid var(--border)',background:selReq?.id===r.id?'var(--blue-light)':'',borderLeft:"3px solid "+(selReq?.id===r.id?"var(--blue)":r.status==="Aprovado"?"var(--green)":r.status==="Em cotação"?"var(--amber)":"transparent")}}>
                       <td style={{padding:'8px 10px',fontFamily:'monospace',fontSize:11,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap'}}>{r.ref_number}</td>
                       <td style={{padding:'8px 10px',maxWidth:200}}>
                         <div style={{fontWeight:500,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.description}</div>
@@ -296,7 +296,7 @@ export default function Quotations() {
           <div className="card" style={{marginBottom:12,borderLeft:'3px solid var(--blue)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:4}}>{selReq.ref_number} · {selReq.employees?.emp_code} {selReq.employees?.full_name} {selReq.affaires?`· ${selReq.affaires.ref_number} — ${selReq.affaires.name}`:''}</div>
+                <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:4}}>{selReq.ref_number} · {selReq.employees?.emp_code} {selReq.employees?.full_name} {selReq.affaires?("· "+selReq.affaires.ref_number+" — "+selReq.affaires.name):""}</div>
                 <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>{selReq.description}</div>
                 <div style={{display:'flex',gap:12,fontSize:13,flexWrap:'wrap'}}>
                   <span><span style={{color:'var(--text-muted)'}}>Qtd: </span><strong>{selReq.quantity} {selReq.unit}</strong></span>
@@ -312,8 +312,8 @@ export default function Quotations() {
                   <div style={{marginTop:6,fontSize:12,color:'var(--blue)'}}>
                     <i className="ti ti-user-check" style={{marginRight:4}}/>
                     <strong>{selReq.technical_contact_name}</strong>
-                    {selReq.technical_contact_company && ` — ${selReq.technical_contact_company}`}
-                    {selReq.technical_contact_phone && <a href={`tel:${selReq.technical_contact_phone}`} style={{marginLeft:8,color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-phone" style={{marginRight:2}}/>{selReq.technical_contact_phone}</a>}
+                    {selReq.technical_contact_company && (" — "+selReq.technical_contact_company)}
+                    {selReq.technical_contact_phone && <a href={"tel:"+selReq.technical_contact_phone} style={{marginLeft:8,color:'var(--blue)',textDecoration:'none'}}><i className="ti ti-phone" style={{marginRight:2}}/>{selReq.technical_contact_phone}</a>}
                   </div>
                 )}
               </div>
@@ -350,7 +350,7 @@ export default function Quotations() {
                 {selReq.quantity && <div className="form-group">
                   <label>Total estimado</label>
                   <div style={{padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',fontSize:13,fontWeight:600,color:'var(--blue)'}}>
-                    {form.unit_price ? `€ ${(parseFloat(form.unit_price) * (1-parseFloat(form.discount_pct||0)/100) * parseFloat(selReq.quantity)).toLocaleString('pt-PT',{minimumFractionDigits:2})}` : '—'}
+                    {form.unit_price ? ("€ "+(parseFloat(form.unit_price) * (1-parseFloat(form.discount_pct||0)/100) * parseFloat(selReq.quantity)).toLocaleString("pt-PT",{minimumFractionDigits:2})) : "—"}
                   </div>
                 </div>}
                 <div className="form-group full"><label>Notas</label><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
@@ -453,11 +453,11 @@ export default function Quotations() {
                           <span style={{color:'var(--text-muted)'}}>Total ({selReq.quantity} {selReq.unit})</span>
                           <span style={{fontWeight:700,color:'var(--blue)',fontSize:14}}>€ {totalQuote.toLocaleString('pt-PT',{minimumFractionDigits:2})}</span>
                         </div>
-                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Entrega</span><span>{q.delivery_days?`${q.delivery_days} dias`:'—'}</span></div>
+                        <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Entrega</span><span>{q.delivery_days?(q.delivery_days+" dias"):"—"}</span></div>
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Pagamento</span><span>{q.payment_terms}</span></div>
                         <div className="quote-field">
                           <span style={{color:'var(--text-muted)'}}>IVA</span>
-                          <span style={{color:q.vat_exempt?'var(--green)':''}}>{q.vat_exempt?'✈️ 0% (exportação)':`${q.vat_rate||23}%`}</span>
+                          <span style={{color:q.vat_exempt?'var(--green)':''}}>{q.vat_exempt?"✈️ 0% (exportação)":((q.vat_rate||23)+"%")}</span>
                         </div>
                         {!q.vat_exempt && q.vat_rate > 0 && (
                           <div className="quote-field">
@@ -470,7 +470,7 @@ export default function Quotations() {
                         {q.notes && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:6,fontStyle:'italic',padding:'4px 6px',background:'var(--bg)',borderRadius:4}}>{q.notes}</div>}
                         {q.delivery_type && (
                           <div style={{fontSize:11,marginTop:6,padding:'4px 6px',background:'var(--green-light)',borderRadius:4,color:'var(--green)',fontWeight:500}}>
-                            🚚 {q.delivery_type}{q.delivery_address?` — ${q.delivery_address}`:''}{q.delivery_city?`, ${q.delivery_city}`:''}
+                            🚚 {q.delivery_type}{q.delivery_address?(" — "+q.delivery_address):""}{q.delivery_city?(", "+q.delivery_city):""}
                           </div>
                         )}
 
@@ -556,7 +556,7 @@ export default function Quotations() {
                 <label>Cotações a incluir na proposta</label>
                 <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:6}}>
                   {quotes.map(q=>(
-                    <label key={q.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',cursor:'pointer',border:`1px solid ${proposalConfig.selectedQuotes.includes(q.id)?'var(--blue)':'var(--border)'}`}}>
+                    <label key={q.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg)',borderRadius:'var(--radius)',cursor:'pointer',border:"1px solid "+(proposalConfig.selectedQuotes.includes(q.id)?"var(--blue)":"var(--border)")}}>
                       <input type="checkbox" checked={proposalConfig.selectedQuotes.includes(q.id)}
                         onChange={e=>{
                           const ids = e.target.checked
