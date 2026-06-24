@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
 import { logActivity } from '../hooks/useActivity'
+import { requestAction } from '../hooks/usePendingAction'
 
 const COUNTRIES = ['Portugal','Suíça','França','Espanha','Alemanha','Reino Unido','Luxemburgo','Bélgica','Itália','Outro']
 const STATUS_CLASS = { 'Recebido':'badge-pending','Em preparação':'badge-quotation','Encomendado':'badge-ordered','Entregue':'badge-delivered','Cancelado':'badge-cancelled' }
@@ -72,7 +73,15 @@ export default function Clients() {
   const handleDelete = async (id) => {
     if (!confirm('Arquivar este cliente?')) return
     const cli = clients.find(c=>c.id===id)
-    await supabase.from('clients').update({ active: false }).eq('id', id)
+    const { data: empRole } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
+    if (empRole?.role === 'admin') {
+      await supabase.from('clients').update({ active: false }).eq('id', id)
+    } else {
+      const item = clients.find(x=>x.id===id)
+      await requestAction({ empId: empRole?.id, action: 'delete', entityType: 'client', entityId: id, entityRef: item?.name, entityLabel: item?.name })
+      alert('Pedido enviado para aprovação do administrador.')
+      return
+    }
     await logActivity({ action:'deleted', entityType:'client', entityRef:cli?.name, description:`arquivou cliente ${cli?.name}` })
     setSelected(null); load()
   }

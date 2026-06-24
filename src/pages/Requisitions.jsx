@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
 import { logActivity } from '../hooks/useActivity'
+import { requestAction } from '../hooks/usePendingAction'
 
 const STATUS_CLASS = {
   'Pendente':'badge-pending','Em cotação':'badge-quotation','Aprovado':'badge-approved',

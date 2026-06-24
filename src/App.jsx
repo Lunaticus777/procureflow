@@ -16,6 +16,7 @@ import Clients from './pages/Clients'
 import Affaires from './pages/Affaires'
 import AffaireFinancials from './pages/AffaireFinancials'
 import ActivityPanel from './components/ActivityPanel'
+import PendingActionsPanel from './components/PendingActionsPanel'
 import ResetPassword from './pages/ResetPassword'
 
 const PAGE_TITLES = {
@@ -40,6 +41,8 @@ function Layout() {
   const location = useLocation()
   const [userRole, setUserRole] = React.useState(null)
   const [showActivity, setShowActivity] = React.useState(false)
+  const [showPending, setShowPending] = React.useState(false)
+  const [pendingCount, setPendingCount] = React.useState(0)
   const [totalAlerts, setTotalAlerts] = React.useState(0)
   const [empCode, setEmpCode] = React.useState('')
 
@@ -119,6 +122,7 @@ function Layout() {
           <div className="topbar-title">{title}</div>
           <div className="topbar-actions">
             <ActivityPanel show={showActivity} onToggle={()=>setShowActivity(s=>!s)} totalAlerts={totalAlerts} />
+            {userRole==='admin' && <PendingActionsPanel show={showPending} onToggle={()=>setShowPending(s=>!s)} onCountChange={setPendingCount} />}
             <button className="btn btn-primary" onClick={()=>{ nav('/affaires'); setTimeout(()=>{ const btn = document.querySelector('[data-new-affaire]'); if(btn) btn.click() }, 100) }} style={{fontSize:13}}>
               <i className="ti ti-plus" />Novo Negócio
             </button>

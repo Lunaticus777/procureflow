@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
 import { logActivity } from '../hooks/useActivity'
+import { requestAction } from '../hooks/usePendingAction'
 
 const PT_DISTRICTS = ['Aveiro','Beja','Braga','Bragança','Castelo Branco','Coimbra','Évora','Faro','Guarda','Leiria','Lisboa','Portalegre','Porto','Santarém','Setúbal','Viana do Castelo','Vila Real','Viseu','Açores','Madeira']
 const EU_COUNTRIES = ['Portugal','Espanha','França','Alemanha','Itália','Bélgica','Países Baixos','Luxemburgo','Suíça','Reino Unido','Irlanda','Áustria','Polónia','Outro']
@@ -79,7 +80,15 @@ export default function Transport() {
   const handleDelete = async (id) => {
     if (!confirm('Arquivar este transportador?')) return
     const carrier = carriers.find(c=>c.id===id)
-    await supabase.from('carriers').update({ active: false }).eq('id', id)
+    const { data: empRole } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
+    if (empRole?.role === 'admin') {
+      await supabase.from('carriers').update({ active: false }).eq('id', id)
+    } else {
+      const item = carriers.find(x=>x.id===id)
+      await requestAction({ empId: empRole?.id, action: 'delete', entityType: 'transport', entityId: id, entityRef: item?.name, entityLabel: item?.name })
+      alert('Pedido enviado para aprovação do administrador.')
+      return
+    }
     await logActivity({ action:'deleted', entityType:'transport', entityRef:carrier?.name, description:`arquivou transportador ${carrier?.name}` })
     setSelected(null); load()
   }

@@ -1,3 +1,4 @@
+import { requestAction } from '../hooks/usePendingAction'
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
@@ -72,7 +73,15 @@ export default function SupplierDetail() {
 
   const handleDelete = async (id) => {
     if (!confirm('Arquivar este fornecedor?')) return
-    await supabase.from('suppliers').update({ active: false }).eq('id', id)
+    const { data: empRole } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
+    if (empRole?.role === 'admin') {
+      await supabase.from('suppliers').update({ active: false }).eq('id', id)
+    } else {
+      const item = suppliers.find(x=>x.id===id)
+      await requestAction({ empId: empRole?.id, action: 'delete', entityType: 'supplier', entityId: id, entityRef: item?.name, entityLabel: item?.name })
+      alert('Pedido enviado para aprovação do administrador.')
+      return
+    }
     setSelected(null); load()
   }
 
