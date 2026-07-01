@@ -57,8 +57,16 @@ export default function Orders() {
     setSaving(true)
     const { data: emp } = await supabase.from('employees').select('id').eq('email',session?.user?.email).single()
     await supabase.from('order_partial_payments').insert({ order_id:selected.id, created_by:emp?.id||null, amount:parseFloat(payForm.amount), payment_date:payForm.payment_date||new Date().toISOString().split('T')[0], payment_method:payForm.payment_method, reference:payForm.reference, notes:payForm.notes })
+    // Check if fully paid
+    const newTotal = totalPaid + parseFloat(payForm.amount||0)
+    if (selected.total_amount && newTotal >= parseFloat(selected.total_amount)) {
+      await supabase.from('orders').update({ status:'Entregue' }).eq('id', selected.id)
+      setSelected({...selected, status:'Entregue'})
+      // Mark supplier payment as paid
+      await supabase.from('payments').update({ status:'Pago', paid_date: new Date().toISOString().split('T')[0] }).eq('order_id', selected.id).eq('status','Pendente')
+    }
     setPayForm({amount:'',payment_date:'',payment_method:'Transferência',reference:'',notes:''})
-    setShowPayForm(false); setSaving(false); loadPayments(selected.id)
+    setShowPayForm(false); setSaving(false); loadPayments(selected.id); load()
   }
 
   const filtered = orders.filter(o => {
