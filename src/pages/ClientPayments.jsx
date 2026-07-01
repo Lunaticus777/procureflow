@@ -40,8 +40,30 @@ export default function ClientPayments() {
   useEffect(() => { load() }, [])
 
   const markPaid = async (id, type) => {
-    const table = type==='client'?'client_payments':'payments'
-    await supabase.from(table).update({status:'Pago',paid_date:new Date().toISOString().split('T')[0]}).eq('id',id)
+    const today = new Date().toISOString().split('T')[0]
+    if (type === 'client') {
+      await supabase.from('client_payments').update({status:'Pago', paid_date:today}).eq('id',id)
+    } else {
+      // Mark supplier invoice as paid
+      const inv = supplierInvoices.find(p=>p.id===id)
+      await supabase.from('payments').update({status:'Pago', paid_date:today}).eq('id',id)
+      // Also create a record in order_partial_payments so it appears in Pagamentos efectuados
+      if (inv?.order_id) {
+        // Check if partial payment already exists for this order
+        const { data: existing } = await supabase.from('order_partial_payments').select('id').eq('order_id', inv.order_id)
+        if (!existing?.length) {
+          const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+          await supabase.from('order_partial_payments').insert({
+            order_id: inv.order_id,
+            amount: inv.amount,
+            payment_date: today,
+            payment_method: 'Transferência',
+            created_by: emp?.id||null,
+            notes: 'Registado via Faturas-Fornecedores'
+          })
+        }
+      }
+    }
     load()
   }
 
