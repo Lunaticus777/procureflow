@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { useRole } from '../hooks/useRole'
 
 export default function ClientPayments() {
+  const { session } = useAuth()
   const [clientPayments, setClientPayments] = useState([])
   const [supplierInvoices, setSupplierInvoices] = useState([])
   const [supplierPartials, setSupplierPartials] = useState([])
