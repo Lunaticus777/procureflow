@@ -67,6 +67,29 @@ export default function ClientPayments() {
     load()
   }
 
+
+  const syncPaidInvoices = async () => {
+    if (!confirm('Sincronizar todas as faturas pagas com Pagamentos efectuados?')) return
+    const paid = supplierInvoices.filter(p => p.status === 'Pago' && p.order_id)
+    const { data: emp } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+    let count = 0
+    for (const inv of paid) {
+      const { data: existing } = await supabase.from('order_partial_payments').select('id').eq('order_id', inv.order_id)
+      if (!existing?.length) {
+        await supabase.from('order_partial_payments').insert({
+          order_id: inv.order_id,
+          amount: inv.amount,
+          payment_date: inv.paid_date || new Date().toISOString().split('T')[0],
+          payment_method: 'Transferência',
+          created_by: emp?.id||null,
+          notes: 'Sincronizado automaticamente'
+        })
+        count++
+      }
+    }
+    alert(count > 0 ? count + ' pagamento(s) sincronizado(s)!' : 'Nada a sincronizar — tudo já está em dia.')
+    load()
+  }
   const handleDeletePayment = async (id, type) => {
     if (!confirm('Apagar este pagamento?')) return
     const table = type === 'client' ? 'client_payments' : type === 'partial' ? 'order_partial_payments' : 'payments'
@@ -177,7 +200,7 @@ export default function ClientPayments() {
               A receber — Clientes ({filteredClient.filter(p=>p.status!=='Pago').length} pend.)
             </div>
             <div className={`tab ${tab==='invoices'?'active':''}`} onClick={()=>setTab('invoices')}>
-              Faturas — Fornecedores ({filteredInvoices.filter(p=>p.status!=='Pago').length} pend.)
+              Faturas — Fornecedores ({filteredInvoices.filter(p=>p.status!=='Pago').length} pend.) <button className="btn btn-sm" style={{marginLeft:8,fontSize:10}} onClick={syncPaidInvoices}>🔄 Sincronizar</button>
             </div>
             <div className={`tab ${tab==='partials'?'active':''}`} onClick={()=>setTab('partials')}>
               Pagamentos efectuados ({filteredPartials.length})
