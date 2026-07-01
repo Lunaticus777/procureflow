@@ -125,7 +125,7 @@ export default function Quotations() {
     await logActivity({ empId: empLog?.id, action: 'approved', entityType: 'quotation', entityRef: selReq.ref_number, description: `aprovou cotação de ${q.suppliers?.name} para ${selReq.description.slice(0,40)} — ${q.final_price}€/un`, affaireId: selReq.affaire_id||null })
     // Mark all others for same requisition as rejected
     await supabase.from('quotations').update({ selected: false, rejected: true }).eq('requisition_id', selReq.id).neq('id', q.id)
-    await supabase.from('requisitions').update({ status:'Aprovado' }).eq('id', selReq.id)
+    await supabase.from('requisitions').update({ status:'Encomendado' }).eq('id', selReq.id)
     const count = Date.now()
     const total = q.final_price * selReq.quantity
     // Criar encomenda
