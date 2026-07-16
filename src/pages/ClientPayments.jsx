@@ -25,7 +25,7 @@ export default function ClientPayments() {
     const [{ data: cp }, { data: sp }, { data: pp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
       supabase.from('client_payments').select('*, clients(name), affaires(name,ref_number,id), client_orders(ref_number)').order('due_date'),
       supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt))').order('due_date'),
-      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id))), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
+      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
       supabase.from('orders').select('id,ref_number,suppliers(name)').not('status','eq','Entregue').order('ref_number'),
@@ -160,9 +160,15 @@ export default function ClientPayments() {
   const toPay = enrichedInvoicesFiltered.filter(p => !p.isPaid)
   // Faturas marcadas como pagas directamente (sem pagamento parcial registado) — precisam de aparecer em "Pago"
   const paidInvoicesOnly = enrichedInvoicesFiltered.filter(p => p.status==='Pago' && !partialsByOrder[p.order_id])
+  const vatFor = (order, amount) => {
+    const vatExempt = order?.quotations?.vat_exempt || false
+    const vatRate = parseFloat(order?.quotations?.vat_rate ?? 23)
+    const vatAmount = vatExempt ? 0 : amount * vatRate/100
+    return { vatExempt, vatRate, vatAmount, totalInclVat: amount + vatAmount }
+  }
   const paidItems = [
-    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref })),
-    ...filteredPartials.map(p => ({ kind:'partial', id:p.id, date:p.payment_date, amount:parseFloat(p.amount||0), supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference })),
+    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, ...vatFor(p.orders, p.amount) })),
+    ...filteredPartials.map(p => { const amount = parseFloat(p.amount||0); return { kind:'partial', id:p.id, date:p.payment_date, amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference, ...vatFor(p.orders, amount) } }),
   ].sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
 
   // Totais (sempre sobre o universo completo, independente da pesquisa/filtro)
@@ -179,6 +185,8 @@ export default function ClientPayments() {
   const totalToPayVat = toPay.reduce((acc,p)=>acc+p.vatAmount,0)
   const totalToPayInclVat = totalToPay + totalToPayVat
   const totalPaidItems = paidItems.reduce((acc,p)=>acc+p.amount,0)
+  const totalPaidItemsVat = paidItems.reduce((acc,p)=>acc+p.vatAmount,0)
+  const totalPaidItemsInclVat = totalPaidItems + totalPaidItemsVat
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -326,8 +334,8 @@ export default function ClientPayments() {
           paidItems.length===0 ? <div className="empty">Sem pagamentos registados.</div>
           : <>
               <div style={{padding:'8px 12px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
-                <strong style={{color:'var(--green)'}}>Total pago: € {totalPaidItems.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
-                <span style={{color:'var(--text-muted)',marginLeft:8}}>({paidItems.length} pagamento(s))</span>
+                <strong style={{color:'var(--green)'}}>Total pago: € {totalPaidItems.toLocaleString('pt-PT',{minimumFractionDigits:2})} (S/IVA)</strong>
+                <span style={{color:'var(--text-muted)',marginLeft:8}}>· € {totalPaidItemsInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})} (C/IVA) · {paidItems.length} pagamento(s)</span>
               </div>
               {paidItems.map(p=>(
                 <div key={`${p.kind}-${p.id}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
@@ -344,9 +352,17 @@ export default function ClientPayments() {
                       {p.reference ? ` · Ref: ${p.reference}` : ''}
                       {p.invoiceRef ? ` · Fatura: ${p.invoiceRef}` : ''}
                     </div>
+                    <div style={{fontSize:11,marginTop:2}}>
+                      {p.vatExempt
+                        ? <span style={{color:'var(--green)'}}>✈️ IVA 0% (exportação)</span>
+                        : <span style={{color:'var(--text-muted)'}}>+ € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} IVA ({p.vatRate}%)</span>}
+                    </div>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {p.amount.toLocaleString('pt-PT',{minimumFractionDigits:2})} ✓</span>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {p.amount.toLocaleString('pt-PT',{minimumFractionDigits:2})} ✓</div>
+                      <div style={{fontSize:11,color:'var(--text-muted)'}}>c/IVA € {p.totalInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
+                    </div>
                     {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,p.kind==='partial'?'partial':'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
                   </div>
                 </div>
