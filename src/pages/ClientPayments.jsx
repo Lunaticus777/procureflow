@@ -24,7 +24,7 @@ export default function ClientPayments() {
   const load = async () => {
     const [{ data: cp }, { data: sp }, { data: pp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
       supabase.from('client_payments').select('*, clients(name), affaires(name,ref_number,id), client_orders(ref_number)').order('due_date'),
-      supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)))').order('due_date'),
+      supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt))').order('due_date'),
       supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id))), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
@@ -148,7 +148,11 @@ export default function ClientPayments() {
     const amount = parseFloat(p.amount||0)
     const paidViaPartials = partialsByOrder[p.order_id] || 0
     const remaining = p.status==='Pago' ? 0 : Math.max(0, amount - paidViaPartials)
-    return { ...p, amount, paidViaPartials, remaining, isPaid: p.status==='Pago' || remaining<=0.01 }
+    const vatExempt = p.orders?.quotations?.vat_exempt || false
+    const vatRate = parseFloat(p.orders?.quotations?.vat_rate ?? 23)
+    const vatAmount = vatExempt ? 0 : remaining * vatRate/100
+    const remainingInclVat = remaining + vatAmount
+    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, vatAmount, remainingInclVat, isPaid: p.status==='Pago' || remaining<=0.01 }
   }
   const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
   const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
@@ -165,8 +169,16 @@ export default function ClientPayments() {
   const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remaining,0)
+  const totalSupplierToPayVat = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.vatAmount,0)
+  const totalSupplierToPayInclVat = totalSupplierToPay + totalSupplierToPayVat
   const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalSupplierPaid = totalPartialsPaid + enrichedInvoicesAll.filter(p=>p.status==='Pago' && !partialsByOrder[p.order_id]).reduce((acc,p)=>acc+p.amount,0)
+
+  // Totais do separador (respeitam pesquisa/filtro de obra)
+  const totalToPay = toPay.reduce((acc,p)=>acc+p.remaining,0)
+  const totalToPayVat = toPay.reduce((acc,p)=>acc+p.vatAmount,0)
+  const totalToPayInclVat = totalToPay + totalToPayVat
+  const totalPaidItems = paidItems.reduce((acc,p)=>acc+p.amount,0)
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -175,7 +187,7 @@ export default function ClientPayments() {
       <div className="metrics">
         <div className="metric"><div className="metric-label">A receber (clientes)</div><div className="metric-value text-amber">€ {totalClientPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Recebido de clientes</div><div className="metric-value text-green">€ {totalClientReceived.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
-        <div className="metric"><div className="metric-label">Faturas por pagar</div><div className="metric-value text-red">€ {totalSupplierPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">Faturas por pagar (S/IVA)</div><div className="metric-value text-red">€ {totalSupplierToPay.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div><div className="metric-sub">c/IVA: € {totalSupplierToPayInclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Pago a fornecedores</div><div className="metric-value text-green">€ {(totalSupplierPaid + totalPartialsPaid).toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
       </div>
 
@@ -226,10 +238,10 @@ export default function ClientPayments() {
               A receber — Clientes ({filteredClient.filter(p=>p.status!=='Pago').length} pend.)
             </div>
             <div className={`tab ${tab==='invoices'?'active':''}`} onClick={()=>setTab('invoices')}>
-              Faturas — Fornecedores ({filteredInvoices.filter(p=>p.status!=='Pago').length} pend.) <button className="btn btn-sm" style={{marginLeft:8,fontSize:10}} onClick={syncPaidInvoices}>🔄 Sincronizar</button>
+              Faturas — Fornecedores ({toPay.length} pend.) <button className="btn btn-sm" style={{marginLeft:8,fontSize:10}} onClick={syncPaidInvoices}>🔄 Sincronizar</button>
             </div>
             <div className={`tab ${tab==='partials'?'active':''}`} onClick={()=>setTab('partials')}>
-              Pagamentos efectuados ({filteredPartials.length})
+              Pagamentos efectuados ({paidItems.length})
             </div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowForm(true)}><i className="ti ti-plus"/>Novo</button>
@@ -271,56 +283,71 @@ export default function ClientPayments() {
 
         {/* Faturas de fornecedores */}
         {tab==='invoices' && (
-          filteredInvoices.length===0 ? <div className="empty">Sem faturas de fornecedores.</div>
-          : filteredInvoices.map(p=>(
-              <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
-                <div>
-                  <div style={{fontWeight:500,fontSize:13}}>{p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}</div>
-                  <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
-                    {p.orders?.ref_number||'—'}
-                    {p.orders?.requisitions?.description ? ` · ${p.orders.requisitions.description.slice(0,40)}` : ''}
-                    {p.orders?.requisitions?.affaires ? ` · ${p.orders.requisitions.affaires.ref_number}` : ''}
-                    {p.due_date?` · Vence ${new Date(p.due_date).toLocaleDateString('pt-PT')}`:''}
-                    {p.paid_date?` · Pago ${new Date(p.paid_date).toLocaleDateString('pt-PT')}`:''}
-                  </div>
-                  {p.notes && <div style={{fontSize:11,fontStyle:'italic',color:'var(--text-muted)'}}>{p.notes}</div>}
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontWeight:600,fontSize:15}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}</span>
-                  <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
-                  {p.status!=='Pago' && <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>}
-                  {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
-                </div>
-              </div>
-            ))
-        )}
-
-        {/* Pagamentos parciais efectuados */}
-        {tab==='partials' && (
-          filteredPartials.length===0 ? <div className="empty">Sem pagamentos registados.</div>
+          toPay.length===0 ? <div className="empty">Sem faturas por pagar.</div>
           : <>
-              <div style={{padding:'8px 12px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
-                <strong style={{color:'var(--green)'}}>Total pago: € {totalPartialsPaid.toLocaleString('pt-PT',{minimumFractionDigits:0})}</strong>
-                <span style={{color:'var(--text-muted)',marginLeft:8}}>({filteredPartials.length} pagamento(s))</span>
+              <div style={{padding:'8px 12px',background:'var(--red-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
+                <strong style={{color:'var(--red)'}}>Total em aberto: € {totalToPay.toLocaleString('pt-PT',{minimumFractionDigits:2})} (S/IVA)</strong>
+                <span style={{color:'var(--text-muted)',marginLeft:8}}>· € {totalToPayInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})} (C/IVA) · {toPay.length} fatura(s)</span>
               </div>
-              {filteredPartials.map(p=>(
+              {toPay.map(p=>(
                 <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
                   <div>
+                    <div style={{fontWeight:500,fontSize:13}}>{p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}</div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
+                      {p.orders?.ref_number||'—'}
+                      {p.orders?.requisitions?.description ? ` · ${p.orders.requisitions.description.slice(0,40)}` : ''}
+                      {p.orders?.requisitions?.affaires ? ` · ${p.orders.requisitions.affaires.ref_number}` : ''}
+                      {p.due_date?` · Vence ${new Date(p.due_date).toLocaleDateString('pt-PT')}`:''}
+                      {p.paidViaPartials>0?` · Pago parcialmente: € ${p.paidViaPartials.toLocaleString('pt-PT',{minimumFractionDigits:2})}`:''}
+                    </div>
+                    <div style={{fontSize:11,marginTop:2}}>
+                      {p.vatExempt
+                        ? <span style={{color:'var(--green)'}}>✈️ IVA 0% (exportação)</span>
+                        : <span style={{color:'var(--text-muted)'}}>+ € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} IVA ({p.vatRate}%)</span>}
+                    </div>
+                    {p.notes && <div style={{fontSize:11,fontStyle:'italic',color:'var(--text-muted)'}}>{p.notes}</div>}
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontWeight:600,fontSize:15}}>€ {p.remaining.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
+                      <div style={{fontSize:11,color:'var(--text-muted)'}}>c/IVA € {p.remainingInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
+                    </div>
+                    <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
+                    <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>
+                    {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
+                  </div>
+                </div>
+              ))}
+            </>
+        )}
+
+        {/* Pagamentos efectuados (parciais + faturas marcadas pagas directamente) */}
+        {tab==='partials' && (
+          paidItems.length===0 ? <div className="empty">Sem pagamentos registados.</div>
+          : <>
+              <div style={{padding:'8px 12px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
+                <strong style={{color:'var(--green)'}}>Total pago: € {totalPaidItems.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
+                <span style={{color:'var(--text-muted)',marginLeft:8}}>({paidItems.length} pagamento(s))</span>
+              </div>
+              {paidItems.map(p=>(
+                <div key={`${p.kind}-${p.id}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
+                  <div>
                     <div style={{fontWeight:500,fontSize:13}}>
-                      {p.orders?.suppliers?.name||'—'} · {p.orders?.ref_number||'—'}
-                      <span style={{fontWeight:400,fontSize:12,color:'var(--text-muted)',marginLeft:6}}>via {p.payment_method||'—'}</span>
+                      {p.supplier||'—'} · {p.orderRef||'—'}
+                      <span style={{fontWeight:400,fontSize:12,color:'var(--text-muted)',marginLeft:6}}>{p.kind==='partial'?`via ${p.method||'—'}`:'fatura paga directamente'}</span>
                     </div>
                     <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
-                      {p.orders?.requisitions?.description?.slice(0,50)||''}
-                      {p.orders?.requisitions?.affaires ? ` · ${p.orders.requisitions.affaires.ref_number}` : ''}
-                      {` · ${new Date(p.payment_date).toLocaleDateString('pt-PT')}`}
-                      {` · por ${p.employees?.emp_code||'—'}`}
+                      {p.desc?.slice(0,50)||''}
+                      {p.affaire ? ` · ${p.affaire.ref_number}` : ''}
+                      {p.date ? ` · ${new Date(p.date).toLocaleDateString('pt-PT')}` : ''}
+                      {p.empCode ? ` · por ${p.empCode}` : ''}
                       {p.reference ? ` · Ref: ${p.reference}` : ''}
+                      {p.invoiceRef ? ` · Fatura: ${p.invoiceRef}` : ''}
                     </div>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {parseFloat(p.amount).toLocaleString('pt-PT',{minimumFractionDigits:0})} ✓</span>
-                    {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'partial')} title="Apagar"><i className="ti ti-trash"/></button>}
+                    <span style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {p.amount.toLocaleString('pt-PT',{minimumFractionDigits:2})} ✓</span>
+                    {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,p.kind==='partial'?'partial':'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
                   </div>
                 </div>
               ))}
