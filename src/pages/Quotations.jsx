@@ -125,6 +125,13 @@ export default function Quotations() {
     loadQuotes(selReq.id)
   }
 
+  const handleCancelQuote = async (q) => {
+    if (!confirm(`Cancelar a cotação de ${q.suppliers?.name}? Fica registada no histórico, marcada como não aprovada.`)) return
+    const { error } = await supabase.from('quotations').update({ rejected: true }).eq('id', q.id)
+    if (error) { alert('Erro: ' + error.message); return }
+    loadQuotes(selReq.id)
+  }
+
   const handleApprove = async (q) => {
     if (!isAdmin) { alert('Apenas um administrador pode aprovar uma cotação.'); return }
     // Mark this one as approved, all others for same requisition as rejected
@@ -677,6 +684,7 @@ export default function Quotations() {
                           {!q.selected && !q.rejected && isAdmin && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
                           <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
                           <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
+                          {!q.selected && !q.rejected && <button className="btn btn-sm" style={{color:'var(--amber)'}} onClick={()=>handleCancelQuote(q)} title="Cancelar"><i className="ti ti-ban"/></button>}
                           {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>}
                         </div>
 

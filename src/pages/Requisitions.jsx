@@ -196,6 +196,23 @@ export default function Requisitions() {
     }
   }
 
+  const handleCancel = async (id) => {
+    const req = rows.find(r => r.id === id)
+    if (!req || req.status === 'Cancelado') return
+    if (!confirm(`Cancelar a requisição ${req.ref_number}? Fica registada no histórico, mas deixa de aparecer nas cotações/encomendas activas.`)) return
+    const { data: emp } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
+    if (emp?.role === 'admin') {
+      const { error } = await supabase.from('requisitions').update({ status:'Cancelado' }).eq('id', id)
+      if (error) { alert('Erro: ' + error.message); return }
+      await logActivity({ empId: emp?.id, action: 'cancelled', entityType: 'requisition', entityRef: req.ref_number, description: 'cancelou requisição '+req.ref_number })
+      if (selected?.id === id) setSelected(s => ({ ...s, status:'Cancelado' }))
+      load()
+    } else {
+      await requestAction({ empId: emp?.id, action: 'update', entityType: 'requisition', entityId: id, entityRef: req.ref_number, entityLabel: req.description?.slice(0,80), changes: { status: { old: req.status, new: 'Cancelado' } } })
+      alert('Pedido de cancelamento enviado para aprovação do administrador.')
+    }
+  }
+
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
@@ -377,6 +394,7 @@ export default function Requisitions() {
                           <td onClick={e=>e.stopPropagation()}>
                             <div style={{display:'flex',gap:4}}>
                               <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/></button>
+                              {r.status!=='Cancelado' && <button className="btn btn-sm" style={{color:'var(--amber)'}} onClick={()=>handleCancel(r.id)} title="Cancelar"><i className="ti ti-ban"/></button>}
                               {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/></button>}
                             </div>
                           </td>
@@ -410,6 +428,7 @@ export default function Requisitions() {
                       </div>
                       <div style={{display:'flex',gap:4,marginTop:8}} onClick={e=>e.stopPropagation()}>
                         <button className="btn btn-sm" onClick={()=>openEdit(r)}><i className="ti ti-edit"/>Editar</button>
+                        {r.status!=='Cancelado' && <button className="btn btn-sm" style={{color:'var(--amber)'}} onClick={()=>handleCancel(r.id)}><i className="ti ti-ban"/>Cancelar</button>}
                         {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(r.id)}><i className="ti ti-trash"/>Apagar</button>}
                       </div>
                     </div>
@@ -499,6 +518,9 @@ export default function Requisitions() {
                 <button className="btn btn-primary" style={{flex:1,justifyContent:'center'}} onClick={()=>openEdit(selected)}>
                   <i className="ti ti-edit"/>Editar requisição
                 </button>
+                {selected.status!=='Cancelado' && <button className="btn" style={{color:'var(--amber)'}} onClick={()=>handleCancel(selected.id)}>
+                  <i className="ti ti-ban"/>Cancelar
+                </button>}
               </div>
             </div>
           </div>

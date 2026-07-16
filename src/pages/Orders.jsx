@@ -176,6 +176,9 @@ export default function Orders() {
                     {s}
                   </button>
                 ))}
+                {selected.status!=='Cancelado' && <button className="btn btn-sm" style={{color:'var(--amber)'}} onClick={()=>{if(!confirm(`Cancelar a encomenda ${selected.ref_number}? Fica registada no histórico, marcada como cancelada.`))return;updateStatus(selected.id,'Cancelado');setSelected({...selected,status:'Cancelado'})}}>
+                    <i className="ti ti-ban"/> Cancelar
+                  </button>}
               </div>
             </div>
             <div style={{display:'flex',gap:8}}>
