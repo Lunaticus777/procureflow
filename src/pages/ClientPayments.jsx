@@ -188,6 +188,9 @@ export default function ClientPayments() {
   const totalPaidItemsVat = paidItems.reduce((acc,p)=>acc+p.vatAmount,0)
   const totalPaidItemsInclVat = totalPaidItems + totalPaidItemsVat
 
+  // Encomendas ainda sem fatura registada (evita duplicar a fatura criada automaticamente ao aprovar a cotação)
+  const ordersWithoutInvoice = orders.filter(o => !supplierInvoices.some(inv => inv.order_id === o.id))
+
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
   return (
@@ -218,8 +221,9 @@ export default function ClientPayments() {
             {payType==='supplier' && <div className="form-group full"><label>Encomenda</label>
               <select value={form.order_id} onChange={e=>setForm({...form,order_id:e.target.value})}>
                 <option value="">— Selecionar —</option>
-                {orders.map(o=><option key={o.id} value={o.id}>{o.ref_number} — {o.suppliers?.name}</option>)}
+                {ordersWithoutInvoice.map(o=><option key={o.id} value={o.id}>{o.ref_number} — {o.suppliers?.name}</option>)}
               </select>
+              {ordersWithoutInvoice.length===0 && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Todas as encomendas já têm fatura registada.</div>}
             </div>}
             <div className="form-group full"><label>Negócio / Obra</label>
               <select value={form.affaire_id} onChange={e=>setForm({...form,affaire_id:e.target.value})}>

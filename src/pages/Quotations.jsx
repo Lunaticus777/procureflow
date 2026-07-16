@@ -41,15 +41,20 @@ export default function Quotations() {
   const [lang, setLang] = useState('pt')
   const [ordersByQuote, setOrdersByQuote] = useState({})
 
+  const loadReqs = async () => {
+    const { data: rData } = await supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Cancelado').order('created_at',{ascending:false})
+    setReqs(rData||[])
+    return rData||[]
+  }
+
   useEffect(() => {
     async function load() {
-      const [{ data: rData }, { data: affData }, { data: sData }, { data: cData }] = await Promise.all([
-        supabase.from('requisitions').select('*, affaires(name,ref_number,id), employees(full_name,emp_code)').not('status','eq','Cancelado').order('created_at',{ascending:false}),
+      const [rData, { data: affData }, { data: sData }, { data: cData }] = await Promise.all([
+        loadReqs(),
         supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
         supabase.from('suppliers').select('*').eq('active',true).order('name'),
         supabase.from('carriers').select('id,name,phone,base_price,price_type,currency').eq('active',true).order('name'),
       ])
-      setReqs(rData||[])
       setAffaires(affData||[])
       setSuppliers(sData||[])
       setCarriers(cData||[])
@@ -105,6 +110,8 @@ export default function Quotations() {
         delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null, delivery_city: form.delivery_city||null,
       })
       await supabase.from('requisitions').update({ status:'Em cotação' }).eq('id', selReq.id)
+      setSelReq(r => ({ ...r, status:'Em cotação' }))
+      loadReqs()
     }
     setForm({ supplier_id:'', supplier_ref:'', unit_price:'', discount_pct:'0', delivery_days:'', valid_until:'', payment_terms:'30 dias', notes:'' })
     setShowForm(false); setEditQuote(null); setSaving(false)
@@ -120,11 +127,8 @@ export default function Quotations() {
 
   const handleApprove = async (q) => {
     if (!isAdmin) { alert('Apenas um administrador pode aprovar uma cotação.'); return }
-    // Mark this one as approved
+    // Mark this one as approved, all others for same requisition as rejected
     await supabase.from('quotations').update({ selected: true }).eq('id', q.id)
-    const { data: empLog } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-    await logActivity({ empId: empLog?.id, action: 'approved', entityType: 'quotation', entityRef: selReq.ref_number, description: `aprovou cotação de ${q.suppliers?.name} para ${selReq.description.slice(0,40)} — ${q.final_price}€/un`, affaireId: selReq.affaire_id||null })
-    // Mark all others for same requisition as rejected
     await supabase.from('quotations').update({ selected: false, rejected: true }).eq('requisition_id', selReq.id).neq('id', q.id)
     await supabase.from('requisitions').update({ status:'Encomendado' }).eq('id', selReq.id)
     const count = Date.now()
@@ -145,6 +149,46 @@ export default function Quotations() {
         notes: 'Criado automaticamente ao aprovar cotação',
       })
     }
+    // Log de actividade — não crítico, uma falha aqui não deve deixar a aprovação a meio
+    try {
+      const { data: empLog } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+      await logActivity({ empId: empLog?.id, action: 'approved', entityType: 'quotation', entityRef: selReq.ref_number, description: `aprovou cotação de ${q.suppliers?.name} para ${selReq.description.slice(0,40)} — ${q.final_price}€/un`, affaireId: selReq.affaire_id||null })
+    } catch (e) { console.error('logActivity falhou:', e) }
+    setSelReq(r => ({ ...r, status:'Encomendado' }))
+    loadReqs()
+    loadQuotes(selReq.id)
+  }
+
+  // Corrige requisições cuja cotação já foi aprovada mas o estado ficou preso (ex.: falha a meio da aprovação anterior)
+  const handleRepairStuck = async () => {
+    const approved = quotes.find(q => q.selected)
+    if (!approved) return
+    setSaving(true)
+    await supabase.from('quotations').update({ selected: false, rejected: true }).eq('requisition_id', selReq.id).neq('id', approved.id)
+    await supabase.from('requisitions').update({ status:'Encomendado' }).eq('id', selReq.id)
+    const { data: existingOrder } = await supabase.from('orders').select('id').eq('quotation_id', approved.id).maybeSingle()
+    if (!existingOrder) {
+      const count = Date.now()
+      const total = approved.final_price * selReq.quantity
+      const { data: order } = await supabase.from('orders').insert({
+        ref_number: `ENC-${String(count).slice(-4)}`,
+        requisition_id: selReq.id, quotation_id: approved.id, supplier_id: approved.supplier_id,
+        quantity: selReq.quantity, total_amount: total, status: 'Confirmado',
+        expected_date: approved.delivery_days ? new Date(Date.now()+approved.delivery_days*86400000).toISOString().split('T')[0] : null,
+      }).select().single()
+      if (order) {
+        const daysMatch = (approved.payment_terms||'').match(/(\d+)/)
+        const dueDate = daysMatch ? new Date(Date.now()+parseInt(daysMatch[1])*86400000).toISOString().split('T')[0] : null
+        await supabase.from('payments').insert({
+          order_id: order.id, affaire_id: selReq.affaire_id||null, invoice_ref: approved.supplier_ref||null,
+          amount: total, due_date: dueDate, status: 'Pendente', payment_type: 'Fornecedor',
+          notes: 'Criado automaticamente ao corrigir cotação presa',
+        })
+      }
+    }
+    setSelReq(r => ({ ...r, status:'Encomendado' }))
+    setSaving(false)
+    loadReqs()
     loadQuotes(selReq.id)
   }
 
@@ -458,6 +502,13 @@ export default function Quotations() {
               )}
             </div>
           </div>
+
+          {quotes.some(q=>q.selected) && !['Encomendado','Em trânsito','Entregue'].includes(selReq.status) && (
+            <div style={{background:'var(--amber-light)',border:'1px solid var(--amber)',borderRadius:'var(--radius-lg)',padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
+              <div style={{fontSize:12,color:'#633806'}}>⚠️ Esta requisição tem uma cotação aprovada mas ficou presa em "{selReq.status}" — a encomenda/pagamento podem não ter sido criados.</div>
+              {isAdmin && <button className="btn btn-primary btn-sm" onClick={handleRepairStuck} disabled={saving}>{saving?'A corrigir...':'Corrigir agora'}</button>}
+            </div>
+          )}
 
           {/* Formulário de nova cotação */}
           {showForm && (

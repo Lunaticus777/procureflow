@@ -22,7 +22,7 @@ export default function Orders() {
 
   const load = async () => {
     const [{ data: ord }, { data: aff }] = await Promise.all([
-      supabase.from('orders').select('*, suppliers(name), requisitions(description, ref_number, affaires(name,ref_number,id)), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
+      supabase.from('orders').select('*, suppliers(name), requisitions(ref_number, description, affaires(name,ref_number,id)), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
     ])
     setOrders(ord||[])
@@ -49,6 +49,10 @@ export default function Orders() {
 
   const updateStatus = async (id, status, extra={}) => {
     await supabase.from('orders').update({status,...extra}).eq('id',id)
+    if (status === 'Entregue') {
+      const o = orders.find(x=>x.id===id) || selected
+      if (o?.requisition_id) await supabase.from('requisitions').update({ status:'Entregue' }).eq('id', o.requisition_id)
+    }
     load()
   }
 
@@ -62,6 +66,7 @@ export default function Orders() {
     if (selected.total_amount && newTotal >= parseFloat(selected.total_amount)) {
       await supabase.from('orders').update({ status:'Entregue' }).eq('id', selected.id)
       setSelected({...selected, status:'Entregue'})
+      if (selected.requisition_id) await supabase.from('requisitions').update({ status:'Entregue' }).eq('id', selected.requisition_id)
       // Mark supplier payment as paid
       await supabase.from('payments').update({ status:'Pago', paid_date: new Date().toISOString().split('T')[0] }).eq('order_id', selected.id).eq('status','Pendente')
     }
@@ -71,7 +76,7 @@ export default function Orders() {
 
   const filtered = orders.filter(o => {
     const s = search.toLowerCase()
-    const matchSearch = !s || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.suppliers?.name?.toLowerCase().includes(s)
+    const matchSearch = !s || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.suppliers?.name?.toLowerCase().includes(s)
     const matchAffaire = !filterAffaire || o.requisitions?.affaires?.id === filterAffaire || o.requisitions?.affaires?.ref_number === filterAffaire
     const matchStatus = !filterStatus || o.status === filterStatus
     return matchSearch && matchAffaire && matchStatus
@@ -109,7 +114,10 @@ export default function Orders() {
                   {filtered.map(o=>(
                     <tr key={o.id} style={{cursor:'pointer',background:selected?.id===o.id?'var(--bg)':''}} onClick={()=>selected?.id===o.id?setSelected(null):selectOrder(o)}>
                       <td style={{fontWeight:500}}>{o.ref_number}</td>
-                      <td style={{fontSize:12,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.requisitions?.description}</td>
+                      <td style={{maxWidth:140}}>
+                        <div style={{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.requisitions?.description}</div>
+                        {o.requisitions?.ref_number && <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace'}}>{o.requisitions.ref_number}</div>}
+                      </td>
                       <td style={{fontSize:11}}><div style={{color:'var(--blue)'}}>{o.requisitions?.affaires?.ref_number||'—'}</div>{o.delivery_type&&o.delivery_type!=='Obra (morada da obra)'&&<div style={{fontSize:10,color:'var(--green)'}}>🚚 {o.delivery_type}</div>}</td>
                       <td style={{fontSize:12}}>{o.suppliers?.name}</td>
                       <td style={{fontSize:12}}>{o.total_amount?`€ ${parseFloat(o.total_amount).toLocaleString('pt-PT',{minimumFractionDigits:0})}`:'—'}</td>
@@ -131,7 +139,7 @@ export default function Orders() {
             <div className="card-header">
               <div>
                 <div style={{fontWeight:600}}>{selected.ref_number} — {selected.suppliers?.name}</div>
-                <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{selected.requisitions?.description}</div>
+                <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{selected.requisitions?.ref_number && <span style={{fontFamily:'monospace',fontWeight:600}}>{selected.requisitions.ref_number} · </span>}{selected.requisitions?.description}</div>
                 {selected.requisitions?.affaires && <div style={{fontSize:11,color:'var(--blue)',marginTop:2}}><i className="ti ti-building" style={{marginRight:4}}/>{selected.requisitions.affaires.ref_number} — {selected.requisitions.affaires.name}</div>}
               </div>
               <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
