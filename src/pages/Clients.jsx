@@ -56,14 +56,24 @@ export default function Clients() {
   const handleSave = async () => {
     if (!form.name) return
     setSaving(true)
-    const { data: empLog } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
+    const { data: empLog } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
     if (editClient) {
-      await supabase.from('clients').update(form).eq('id', editClient.id)
-      await logActivity({ empId:empLog?.id, action:'updated', entityType:'client', entityRef:form.name, description:`actualizou cliente ${form.name}` })
-      setSelected({...editClient,...form})
+      if (empLog?.role !== 'admin') {
+        const changes = {}
+        Object.keys(form).forEach(k => {
+          if (String(form[k]||'') !== String(editClient[k]||'')) changes[k] = { old: editClient[k], new: form[k] }
+        })
+        if (Object.keys(changes).length > 0) {
+          await requestAction({ empId: empLog?.id, action: 'update', entityType: 'client', entityId: editClient.id, entityRef: editClient.name, entityLabel: editClient.name, changes })
+          alert('Modificação enviada para aprovação do administrador.')
+        }
+      } else {
+        await supabase.from('clients').update(form).eq('id', editClient.id)
+        await logActivity({ empId:empLog?.id, action:'updated', entityType:'client', entityRef:form.name, description:`actualizou cliente ${form.name}` })
+        setSelected({...editClient,...form})
+      }
     } else {
-      const { data: empIns } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-      await supabase.from('clients').insert({ ...form, created_by: empIns?.id||null })
+      await supabase.from('clients').insert({ ...form, created_by: empLog?.id||null })
       await logActivity({ empId:empLog?.id, action:'created', entityType:'client', entityRef:form.name, description:`adicionou cliente ${form.name}` })
     }
     setForm({ name:'', company:'', nif:'', email:'', phone:'', mobile:'', address:'', city:'', postal_code:'', country:'Portugal', notes:'' })

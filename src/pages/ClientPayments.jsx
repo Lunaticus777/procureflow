@@ -137,12 +137,36 @@ export default function ClientPayments() {
     return matchS && matchA
   })
 
-  // Totais
+  // Reconciliação: uma fatura pode já estar (parcialmente) paga via order_partial_payments
+  // sem que o seu status tenha sido actualizado — sem isto, "por pagar" e "pago" não batem certo.
+  const partialsByOrder = supplierPartials.reduce((acc,p) => {
+    if (!p.order_id) return acc
+    acc[p.order_id] = (acc[p.order_id]||0) + parseFloat(p.amount||0)
+    return acc
+  }, {})
+  const enrichInvoice = (p) => {
+    const amount = parseFloat(p.amount||0)
+    const paidViaPartials = partialsByOrder[p.order_id] || 0
+    const remaining = p.status==='Pago' ? 0 : Math.max(0, amount - paidViaPartials)
+    return { ...p, amount, paidViaPartials, remaining, isPaid: p.status==='Pago' || remaining<=0.01 }
+  }
+  const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
+  const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
+
+  const toPay = enrichedInvoicesFiltered.filter(p => !p.isPaid)
+  // Faturas marcadas como pagas directamente (sem pagamento parcial registado) — precisam de aparecer em "Pago"
+  const paidInvoicesOnly = enrichedInvoicesFiltered.filter(p => p.status==='Pago' && !partialsByOrder[p.order_id])
+  const paidItems = [
+    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref })),
+    ...filteredPartials.map(p => ({ kind:'partial', id:p.id, date:p.payment_date, amount:parseFloat(p.amount||0), supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference })),
+  ].sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
+
+  // Totais (sempre sobre o universo completo, independente da pesquisa/filtro)
   const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
-  const totalSupplierPending = supplierInvoices.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
-  const totalSupplierPaid = supplierInvoices.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
+  const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remaining,0)
   const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
+  const totalSupplierPaid = totalPartialsPaid + enrichedInvoicesAll.filter(p=>p.status==='Pago' && !partialsByOrder[p.order_id]).reduce((acc,p)=>acc+p.amount,0)
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 

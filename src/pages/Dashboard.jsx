@@ -43,16 +43,6 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    // Realtime subscription - refresh when requisitions or tasks change
-    const channel = supabase.channel('dashboard-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'requisitions' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'internal_tasks' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => load())
-      .subscribe()
-    return () => supabase.removeChannel(channel)
-  }, [])
-
-  useEffect(() => {
     async function load() {
       const [
         { count: rCount }, { count: qCount }, { count: oCount },
@@ -86,6 +76,14 @@ export default function Dashboard() {
       setLoading(false)
     }
     load()
+
+    // Realtime subscription - refresh when requisitions or tasks change
+    const channel = supabase.channel('dashboard-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'requisitions' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'internal_tasks' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => load())
+      .subscribe()
+    return () => supabase.removeChannel(channel)
   }, []) // eslint-disable-line
 
   const handleTaskSave = async () => {

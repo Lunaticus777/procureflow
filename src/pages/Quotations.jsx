@@ -119,6 +119,7 @@ export default function Quotations() {
   }
 
   const handleApprove = async (q) => {
+    if (!isAdmin) { alert('Apenas um administrador pode aprovar uma cotação.'); return }
     // Mark this one as approved
     await supabase.from('quotations').update({ selected: true }).eq('id', q.id)
     const { data: empLog } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
@@ -614,7 +615,7 @@ export default function Quotations() {
                         )}
 
                         <div style={{marginTop:10,display:'flex',gap:6,flexWrap:'wrap'}}>
-                          {!q.selected && !q.rejected && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
+                          {!q.selected && !q.rejected && isAdmin && <button className="btn btn-primary btn-sm" style={{flex:1,justifyContent:'center'}} onClick={()=>handleApprove(q)}>✓ Aprovar e Encomendar</button>}
                           <button className="btn btn-sm" onClick={()=>{setShowFollowup(showFollowup===q.id?null:q.id);if(!followups[q.id])loadFollowups(q.id)}}><i className="ti ti-phone"/>Relançar</button>
                           <button className="btn btn-sm" onClick={()=>openEdit(q)}><i className="ti ti-edit"/></button>
                           {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDelete(q.id)}><i className="ti ti-trash"/></button>}

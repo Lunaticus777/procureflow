@@ -60,12 +60,23 @@ export default function SupplierDetail() {
   const handleSave = async () => {
     if (!form.name) return
     setSaving(true)
+    const { data: emp } = await supabase.from('employees').select('id,role').eq('email', session?.user?.email).single()
     if (editSupplier) {
-      await supabase.from('suppliers').update(form).eq('id', editSupplier.id)
-      setSelected({...editSupplier,...form})
+      if (emp?.role !== 'admin') {
+        const changes = {}
+        Object.keys(form).forEach(k => {
+          if (String(form[k]||'') !== String(editSupplier[k]||'')) changes[k] = { old: editSupplier[k], new: form[k] }
+        })
+        if (Object.keys(changes).length > 0) {
+          await requestAction({ empId: emp?.id, action: 'update', entityType: 'supplier', entityId: editSupplier.id, entityRef: editSupplier.name, entityLabel: editSupplier.name, changes })
+          alert('Modificação enviada para aprovação do administrador.')
+        }
+      } else {
+        await supabase.from('suppliers').update(form).eq('id', editSupplier.id)
+        setSelected({...editSupplier,...form})
+      }
     } else {
-      const { data: empIns } = await supabase.from('employees').select('id').eq('email', session?.user?.email).single()
-      await supabase.from('suppliers').insert({ ...form, created_by: empIns?.id||null })
+      await supabase.from('suppliers').insert({ ...form, created_by: emp?.id||null })
     }
     setForm({ name:'', contact_name:'', email:'', phone:'', mobile:'', category:'', payment_terms:'30 dias', address:'', city:'', country:'Portugal', nif:'', notes:'' })
     setShowForm(false); setEditSupplier(null); setSaving(false); load()

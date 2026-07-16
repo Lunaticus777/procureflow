@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { logActivity } from '../hooks/useActivity'
 
 const STOP_COLORS = { 'Recolha':'var(--blue)', 'Passagem':'var(--amber)', 'Entrega final':'var(--green)' }
 const CONTACT_STATUS_CLASS = { 'Por fazer':'badge-pending', 'Contactado':'badge-quotation', 'Confirmado':'badge-approved', 'Recusado':'badge-cancelled' }
