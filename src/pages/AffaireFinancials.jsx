@@ -289,7 +289,7 @@ export default function AffaireFinancials() {
                             {vatExempt?<span title="IVA recuperável — exportação">✈️ 0%</span>:`+${euro(vatAmt)} (${vatRate}%)`}
                           </td>
                           <td style={{fontWeight:600}}>{euro(totalInclVat)}</td>
-                          <td style={{color:paid>=totalExclVat?'var(--green)':'var(--amber)',fontSize:12}}>{euro(paid)}</td>
+                          <td style={{color:paid>=totalInclVat?'var(--green)':'var(--amber)',fontSize:12}}>{euro(paid)}</td>
                           <td><span className={`badge ${{Confirmado:'badge-ordered','Em trânsito':'badge-transit',Entregue:'badge-delivered'}[o.status]||''}`}>{o.status}</span></td>
                         </tr>
                       )

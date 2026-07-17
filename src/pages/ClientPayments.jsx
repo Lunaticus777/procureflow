@@ -182,15 +182,21 @@ export default function ClientPayments() {
 
   const enrichInvoice = (p) => {
     const amount = parseFloat(p.amount||0)
-    const paidViaPartials = partialsByOrder[p.order_id] || 0
-    const remaining = p.status==='Pago' ? 0 : Math.max(0, amount - paidViaPartials)
     const vatExempt = p.orders?.quotations?.vat_exempt || false
     const vatRate = parseFloat(p.orders?.quotations?.vat_rate ?? 23)
     const priceIncludesVat = p.orders?.quotations?.price_includes_vat || false
-    const { vatAmount, totalExclVat: remainingExclVat, totalInclVat: remainingInclVat } = splitVat(remaining, vatExempt, vatRate, priceIncludesVat)
+    const { totalExclVat: fullExclVat, totalInclVat: fullInclVat } = splitVat(amount, vatExempt, vatRate, priceIncludesVat)
+    const paidViaPartials = partialsByOrder[p.order_id] || 0
+    // Os pagamentos parciais são dinheiro real (C/IVA) — compara-se ao total C/IVA para saber
+    // o que falta, não ao valor guardado (que pode ser S/IVA consoante a cotação).
+    const remainingInclVat = p.status==='Pago' ? 0 : Math.max(0, fullInclVat - paidViaPartials)
+    const remainingRatio = fullInclVat > 0 ? remainingInclVat / fullInclVat : 0
+    const remainingExclVat = fullExclVat * remainingRatio
+    const vatAmount = remainingInclVat - remainingExclVat
+    const remaining = remainingExclVat
     const isDuplicate = p.order_id && orderInvoiceCounts[p.order_id] > 1
     const isCancelledOrder = p.orders?.status === 'Cancelado'
-    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isDuplicate, isCancelledOrder, isPaid: p.status==='Pago' || remaining<=0.01 }
+    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isDuplicate, isCancelledOrder, isPaid: p.status==='Pago' || remainingInclVat<=0.01 }
   }
   const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
   const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
@@ -212,22 +218,24 @@ export default function ClientPayments() {
   const activeOrders = orders.filter(o => ['Confirmado','Em trânsito','Entregue'].includes(o.status))
   const unbilledOrders = activeOrders.filter(o => {
     if (supplierInvoices.some(inv => inv.order_id === o.id)) return false
-    const total = parseFloat(o.total_amount||0)
+    const { totalInclVat } = vatFor(o, parseFloat(o.total_amount||0))
     const paidViaPartials = partialsByOrder[o.id] || 0
-    if (paidViaPartials >= total - 0.01) return false
+    if (paidViaPartials >= totalInclVat - 0.01) return false
     const matchS = !s || o.suppliers?.name?.toLowerCase().includes(s) || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.requisitions?.affaires?.name?.toLowerCase().includes(s)
     const matchA = !fa || o.requisitions?.affaires?.id === fa
     return matchS && matchA
   })
   const unbilledItems = unbilledOrders.map(o => {
-    const total = parseFloat(o.total_amount||0)
+    const { vatExempt, vatRate, priceIncludesVat, totalExclVat: fullExclVat, totalInclVat: fullInclVat } = vatFor(o, parseFloat(o.total_amount||0))
     const paidViaPartials = partialsByOrder[o.id] || 0
-    const remaining = Math.max(0, total - paidViaPartials)
-    const { vatExempt, vatRate, priceIncludesVat, vatAmount, totalExclVat, totalInclVat } = vatFor(o, remaining)
+    const remainingInclVat = Math.max(0, fullInclVat - paidViaPartials)
+    const remainingRatio = fullInclVat > 0 ? remainingInclVat / fullInclVat : 0
+    const remainingExclVat = fullExclVat * remainingRatio
+    const vatAmount = remainingInclVat - remainingExclVat
     return {
       id: `unbilled-${o.id}`, orderId: o.id, isUnbilled: true, orders: o, invoice_ref: null, due_date: null, notes: null,
       vatExempt, vatRate, priceIncludesVat, vatAmount, paidViaPartials,
-      remainingExclVat: totalExclVat, remainingInclVat: totalInclVat, isDuplicate: false,
+      remainingExclVat, remainingInclVat, isDuplicate: false,
     }
   })
 

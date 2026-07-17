@@ -74,9 +74,9 @@ export default function Orders() {
     setSaving(true)
     const { data: emp } = await supabase.from('employees').select('id').eq('email',session?.user?.email).single()
     await supabase.from('order_partial_payments').insert({ order_id:selected.id, created_by:emp?.id||null, amount:parseFloat(payForm.amount), payment_date:payForm.payment_date||new Date().toISOString().split('T')[0], payment_method:payForm.payment_method, reference:payForm.reference, notes:payForm.notes })
-    // Check if fully paid
+    // Check if fully paid (comparado ao valor C/IVA, que é o que realmente se paga)
     const newTotal = totalPaid + parseFloat(payForm.amount||0)
-    if (selected.total_amount && newTotal >= parseFloat(selected.total_amount)) {
+    if (selectedTotalInclVat && newTotal >= selectedTotalInclVat) {
       await supabase.from('orders').update({ status:'Entregue' }).eq('id', selected.id)
       setSelected({...selected, status:'Entregue'})
       if (selected.requisition_id) await supabase.from('requisitions').update({ status:'Entregue' }).eq('id', selected.requisition_id)
@@ -124,9 +124,12 @@ export default function Orders() {
     return acc + totalInclVat
   }, 0)
 
+  // O que realmente sai do banco é o valor C/IVA — usa-se esse como referência de "pago/pendente",
+  // não o valor guardado (que pode ser S/IVA consoante a cotação), para bater certo com o real.
+  const selectedTotalInclVat = selected ? splitVat(parseFloat(selected.total_amount||0), selected.quotations?.vat_exempt||false, parseFloat(selected.quotations?.vat_rate||23), selected.quotations?.price_includes_vat||false).totalInclVat : 0
   const totalPaid = partialPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0)
-  const totalPending = selected ? parseFloat(selected.total_amount||0)-totalPaid : 0
-  const paidPct = selected?.total_amount ? Math.min(100,Math.round((totalPaid/parseFloat(selected.total_amount))*100)) : 0
+  const totalPending = selected ? selectedTotalInclVat-totalPaid : 0
+  const paidPct = selectedTotalInclVat ? Math.min(100,Math.round((totalPaid/selectedTotalInclVat)*100)) : 0
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
