@@ -28,7 +28,7 @@ export default function ClientPayments() {
       supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
-      supabase.from('orders').select('id,ref_number,total_amount,status,suppliers(name),quotations(vat_rate,vat_exempt,price_includes_vat)').order('ref_number'),
+      supabase.from('orders').select('id,ref_number,total_amount,status,suppliers(name),requisitions(description,affaires(name,ref_number,id)),quotations(vat_rate,vat_exempt,price_includes_vat)').order('ref_number'),
     ])
     setClientPayments(cp||[])
     setSupplierInvoices(sp||[])
@@ -189,7 +189,6 @@ export default function ClientPayments() {
   const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
   const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
 
-  const toPay = enrichedInvoicesFiltered.filter(p => !p.isPaid)
   // Faturas marcadas como pagas directamente (sem pagamento parcial registado) — precisam de aparecer em "Pago"
   const paidInvoicesOnly = enrichedInvoicesFiltered.filter(p => p.status==='Pago' && !partialsByOrder[p.order_id])
   const vatFor = (order, amount) => {
@@ -199,6 +198,27 @@ export default function ClientPayments() {
     const { vatAmount, totalExclVat, totalInclVat } = splitVat(amount, vatExempt, vatRate, priceIncludesVat)
     return { vatExempt, vatRate, priceIncludesVat, vatAmount, totalExclVat, totalInclVat }
   }
+
+  // Encomendas activas sem NENHUMA fatura registada — o seu valor conta em "Valor encomendas" mas
+  // ficava invisível aqui, criando uma diferença nos totais. Mostram-se como entradas virtuais.
+  const activeOrders = orders.filter(o => ['Confirmado','Em trânsito','Entregue'].includes(o.status))
+  const unbilledOrders = activeOrders.filter(o => {
+    if (supplierInvoices.some(inv => inv.order_id === o.id)) return false
+    const matchS = !s || o.suppliers?.name?.toLowerCase().includes(s) || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.requisitions?.affaires?.name?.toLowerCase().includes(s)
+    const matchA = !fa || o.requisitions?.affaires?.id === fa
+    return matchS && matchA
+  })
+  const unbilledItems = unbilledOrders.map(o => {
+    const total = parseFloat(o.total_amount||0)
+    const { vatExempt, vatRate, priceIncludesVat, vatAmount, totalExclVat, totalInclVat } = vatFor(o, total)
+    return {
+      id: `unbilled-${o.id}`, orderId: o.id, isUnbilled: true, orders: o, invoice_ref: null, due_date: null, notes: null,
+      vatExempt, vatRate, priceIncludesVat, vatAmount, paidViaPartials: 0,
+      remainingExclVat: totalExclVat, remainingInclVat: totalInclVat, isDuplicate: false,
+    }
+  })
+
+  const toPay = [...enrichedInvoicesFiltered.filter(p => !p.isPaid), ...unbilledItems]
   const paidItems = [
     ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, ...vatFor(p.orders, p.amount) })),
     ...filteredPartials.map(p => { const amount = parseFloat(p.amount||0); return { kind:'partial', id:p.id, date:p.payment_date, amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference, ...vatFor(p.orders, amount) } }),
@@ -228,7 +248,7 @@ export default function ClientPayments() {
   const totalPaidItemsInclVat = paidItems.reduce((acc,p)=>acc+p.totalInclVat,0)
 
   // Encomendas ainda sem fatura registada (evita duplicar a fatura criada automaticamente ao aprovar a cotação)
-  const ordersWithoutInvoice = orders.filter(o => o.status!=='Entregue' && !supplierInvoices.some(inv => inv.order_id === o.id))
+  const ordersWithoutInvoice = orders.filter(o => o.status!=='Cancelado' && !supplierInvoices.some(inv => inv.order_id === o.id))
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -346,12 +366,18 @@ export default function ClientPayments() {
                   ⚠️ Há encomendas com mais do que uma fatura registada (marcadas "Duplicado" abaixo) — isso infla o total. Apaga a fatura a mais em cada uma.
                 </div>
               )}
+              {toPay.some(p=>p.isUnbilled) && (
+                <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:12,color:'#633806'}}>
+                  ℹ️ {toPay.filter(p=>p.isUnbilled).length} encomenda(s) activa(s) ainda não têm fatura registada (marcadas "Sem fatura" abaixo) — o valor delas já entra neste total. Usa "Registar fatura" para lhes associar o nº de fatura real.
+                </div>
+              )}
               {toPay.map(p=>(
                 <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
                   <div>
                     <div style={{fontWeight:500,fontSize:13}}>
                       {p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}
                       {p.isDuplicate && <span style={{marginLeft:6,fontSize:10,background:'var(--red)',color:'white',padding:'1px 6px',borderRadius:10,fontWeight:600}}>⚠️ Duplicado</span>}
+                      {p.isUnbilled && <span style={{marginLeft:6,fontSize:10,background:'var(--amber)',color:'white',padding:'1px 6px',borderRadius:10,fontWeight:600}}>Sem fatura registada</span>}
                     </div>
                     <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
                       {p.orders?.ref_number||'—'}
@@ -374,9 +400,13 @@ export default function ClientPayments() {
                       <div style={{fontWeight:600,fontSize:15}}>€ {p.remainingExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
                       <div style={{fontSize:11,color:'var(--text-muted)'}}>c/IVA € {p.remainingInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
                     </div>
-                    <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
-                    <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>
-                    {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
+                    {p.isUnbilled
+                      ? <span className="badge badge-warning">Sem fatura</span>
+                      : <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>}
+                    {p.isUnbilled
+                      ? <button className="btn btn-primary btn-sm" onClick={()=>{setPayType('supplier');setForm(f=>({...f,order_id:p.orderId}));setShowForm(true)}}>Registar fatura</button>
+                      : <button className="btn btn-primary btn-sm" onClick={()=>markPaid(p.id,'supplier')}>Pago ✓</button>}
+                    {!p.isUnbilled && isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
                   </div>
                 </div>
               ))}
