@@ -201,19 +201,26 @@ export default function ClientPayments() {
 
   // Encomendas activas sem NENHUMA fatura registada — o seu valor conta em "Valor encomendas" mas
   // ficava invisível aqui, criando uma diferença nos totais. Mostram-se como entradas virtuais.
+  // Excluem-se as que já foram totalmente pagas via pagamentos parciais directos (sem nunca ter
+  // tido uma linha em "payments") — essas já aparecem correctamente em "Pagamentos efectuados".
   const activeOrders = orders.filter(o => ['Confirmado','Em trânsito','Entregue'].includes(o.status))
   const unbilledOrders = activeOrders.filter(o => {
     if (supplierInvoices.some(inv => inv.order_id === o.id)) return false
+    const total = parseFloat(o.total_amount||0)
+    const paidViaPartials = partialsByOrder[o.id] || 0
+    if (paidViaPartials >= total - 0.01) return false
     const matchS = !s || o.suppliers?.name?.toLowerCase().includes(s) || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.requisitions?.affaires?.name?.toLowerCase().includes(s)
     const matchA = !fa || o.requisitions?.affaires?.id === fa
     return matchS && matchA
   })
   const unbilledItems = unbilledOrders.map(o => {
     const total = parseFloat(o.total_amount||0)
-    const { vatExempt, vatRate, priceIncludesVat, vatAmount, totalExclVat, totalInclVat } = vatFor(o, total)
+    const paidViaPartials = partialsByOrder[o.id] || 0
+    const remaining = Math.max(0, total - paidViaPartials)
+    const { vatExempt, vatRate, priceIncludesVat, vatAmount, totalExclVat, totalInclVat } = vatFor(o, remaining)
     return {
       id: `unbilled-${o.id}`, orderId: o.id, isUnbilled: true, orders: o, invoice_ref: null, due_date: null, notes: null,
-      vatExempt, vatRate, priceIncludesVat, vatAmount, paidViaPartials: 0,
+      vatExempt, vatRate, priceIncludesVat, vatAmount, paidViaPartials,
       remainingExclVat: totalExclVat, remainingInclVat: totalInclVat, isDuplicate: false,
     }
   })
