@@ -20,10 +20,11 @@ export default function Orders() {
   const [payForm, setPayForm] = useState({ amount:'', payment_date:'', payment_method:'Transferência', reference:'', notes:'' })
   const [saving, setSaving] = useState(false)
   const [editingTotal, setEditingTotal] = useState(false)
+  const [showMismatches, setShowMismatches] = useState(false)
 
   const load = async () => {
     const [{ data: ord }, { data: aff }] = await Promise.all([
-      supabase.from('orders').select('*, suppliers(name), requisitions(ref_number, description, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
+      supabase.from('orders').select('*, suppliers(name), requisitions(ref_number, description, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat,final_price), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
     ])
     setOrders(ord||[])
@@ -49,6 +50,21 @@ export default function Orders() {
     await supabase.from('payments').update({ amount:newTotal }).eq('order_id',selected.id)
     setSelected({...selected, total_amount:newTotal})
     setEditingTotal(false)
+    load()
+  }
+
+  const handleFixMismatch = async (o) => {
+    await supabase.from('orders').update({ total_amount:o.expectedTotal }).eq('id', o.id)
+    await supabase.from('payments').update({ amount:o.expectedTotal }).eq('order_id', o.id)
+    load()
+  }
+
+  const handleFixAllMismatches = async () => {
+    if (!confirm(`Corrigir ${mismatchedOrders.length} encomenda(s) para o valor actual da cotação aprovada?`)) return
+    for (const o of mismatchedOrders) {
+      await supabase.from('orders').update({ total_amount:o.expectedTotal }).eq('id', o.id)
+      await supabase.from('payments').update({ amount:o.expectedTotal }).eq('order_id', o.id)
+    }
     load()
   }
 
@@ -124,6 +140,14 @@ export default function Orders() {
     return acc + totalInclVat
   }, 0)
 
+  // Encomendas cujo valor guardado já não bate certo com a cotação aprovada (ex.: cotação editada
+  // antes de existir a sincronização automática, ou correcção manual desactualizada).
+  const mismatchedOrders = orders.filter(o => o.status!=='Cancelado' && o.quotations?.final_price!=null).map(o => {
+    const expectedTotal = parseFloat(o.quotations.final_price) * parseFloat(o.quantity||0)
+    const storedTotal = parseFloat(o.total_amount||0)
+    return { ...o, expectedTotal, storedTotal, diff: storedTotal - expectedTotal }
+  }).filter(o => Math.abs(o.diff) > 0.01)
+
   // O que realmente sai do banco é o valor C/IVA — usa-se esse como referência de "pago/pendente",
   // não o valor guardado (que pode ser S/IVA consoante a cotação), para bater certo com o real.
   const selectedTotalInclVat = selected ? splitVat(parseFloat(selected.total_amount||0), selected.quotations?.vat_exempt||false, parseFloat(selected.quotations?.vat_rate||23), selected.quotations?.price_includes_vat||false).totalInclVat : 0
@@ -142,6 +166,30 @@ export default function Orders() {
           <strong style={{color:'var(--blue)'}}>Valor total (Confirmado + Em trânsito + Entregue) — S/IVA: € {totalActiveExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
           <span style={{color:'var(--text-muted)',marginLeft:8}}>· C/IVA: € {totalActiveInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</span>
         </div>
+        {mismatchedOrders.length>0 && (
+          <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13,color:'#633806'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+              <span>⚠️ {mismatchedOrders.length} encomenda(s) com valor desactualizado face à cotação aprovada</span>
+              <div style={{display:'flex',gap:6}}>
+                <button className="btn btn-sm" onClick={()=>setShowMismatches(v=>!v)}>{showMismatches?'Esconder':'Ver detalhes'}</button>
+                {isAdmin && <button className="btn btn-sm btn-primary" onClick={handleFixAllMismatches}>Corrigir todas</button>}
+              </div>
+            </div>
+            {showMismatches && (
+              <div style={{marginTop:8}}>
+                {mismatchedOrders.map(o=>(
+                  <div key={o.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:'0.5px solid rgba(99,56,6,0.15)',flexWrap:'wrap',gap:8}}>
+                    <div style={{fontSize:12}}>
+                      <strong>{o.ref_number}</strong> — {o.suppliers?.name||'—'}
+                      <span style={{marginLeft:8,color:'var(--text-muted)'}}>guardado € {o.storedTotal.toLocaleString('pt-PT',{minimumFractionDigits:2})} → cotação actual € {o.expectedTotal.toLocaleString('pt-PT',{minimumFractionDigits:2})}</span>
+                    </div>
+                    {isAdmin && <button className="btn btn-sm" onClick={()=>handleFixMismatch(o)}>Corrigir</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:140,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
           <select value={filterAffaire} onChange={e=>setFilterAffaire(e.target.value)} style={{border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}}>
