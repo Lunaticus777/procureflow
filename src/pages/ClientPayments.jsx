@@ -24,8 +24,8 @@ export default function ClientPayments() {
   const load = async () => {
     const [{ data: cp }, { data: sp }, { data: pp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
       supabase.from('client_payments').select('*, clients(name), affaires(name,ref_number,id), client_orders(ref_number)').order('due_date'),
-      supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt))').order('due_date'),
-      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
+      supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat))').order('due_date'),
+      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
       supabase.from('orders').select('id,ref_number,suppliers(name)').not('status','eq','Entregue').order('ref_number'),
@@ -155,15 +155,28 @@ export default function ClientPayments() {
     acc[p.order_id] = (acc[p.order_id]||0) + parseFloat(p.amount||0)
     return acc
   }, {})
+  // O valor guardado (payments.amount) é exactamente o total da cotação aprovada — pode já incluir
+  // IVA ou não, consoante "Preço já inclui IVA" na cotação. Aqui decompomos sempre nos dois valores
+  // (S/IVA e C/IVA) na direcção certa, em vez de assumir sempre que o valor guardado é S/IVA.
+  const splitVat = (total, vatExempt, vatRate, priceIncludesVat) => {
+    if (vatExempt || !vatRate) return { vatAmount: 0, totalExclVat: total, totalInclVat: total }
+    if (priceIncludesVat) {
+      const totalExclVat = total / (1 + vatRate/100)
+      return { vatAmount: total - totalExclVat, totalExclVat, totalInclVat: total }
+    }
+    const vatAmount = total * vatRate/100
+    return { vatAmount, totalExclVat: total, totalInclVat: total + vatAmount }
+  }
+
   const enrichInvoice = (p) => {
     const amount = parseFloat(p.amount||0)
     const paidViaPartials = partialsByOrder[p.order_id] || 0
     const remaining = p.status==='Pago' ? 0 : Math.max(0, amount - paidViaPartials)
     const vatExempt = p.orders?.quotations?.vat_exempt || false
     const vatRate = parseFloat(p.orders?.quotations?.vat_rate ?? 23)
-    const vatAmount = vatExempt ? 0 : remaining * vatRate/100
-    const remainingInclVat = remaining + vatAmount
-    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, vatAmount, remainingInclVat, isPaid: p.status==='Pago' || remaining<=0.01 }
+    const priceIncludesVat = p.orders?.quotations?.price_includes_vat || false
+    const { vatAmount, totalExclVat: remainingExclVat, totalInclVat: remainingInclVat } = splitVat(remaining, vatExempt, vatRate, priceIncludesVat)
+    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isPaid: p.status==='Pago' || remaining<=0.01 }
   }
   const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
   const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
@@ -174,8 +187,9 @@ export default function ClientPayments() {
   const vatFor = (order, amount) => {
     const vatExempt = order?.quotations?.vat_exempt || false
     const vatRate = parseFloat(order?.quotations?.vat_rate ?? 23)
-    const vatAmount = vatExempt ? 0 : amount * vatRate/100
-    return { vatExempt, vatRate, vatAmount, totalInclVat: amount + vatAmount }
+    const priceIncludesVat = order?.quotations?.price_includes_vat || false
+    const { vatAmount, totalExclVat, totalInclVat } = splitVat(amount, vatExempt, vatRate, priceIncludesVat)
+    return { vatExempt, vatRate, priceIncludesVat, vatAmount, totalExclVat, totalInclVat }
   }
   const paidItems = [
     ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, ...vatFor(p.orders, p.amount) })),
@@ -185,19 +199,19 @@ export default function ClientPayments() {
   // Totais (sempre sobre o universo completo, independente da pesquisa/filtro)
   const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
-  const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remaining,0)
+  const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remainingExclVat,0)
   const totalSupplierToPayVat = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.vatAmount,0)
-  const totalSupplierToPayInclVat = totalSupplierToPay + totalSupplierToPayVat
+  const totalSupplierToPayInclVat = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remainingInclVat,0)
   const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalSupplierPaid = totalPartialsPaid + enrichedInvoicesAll.filter(p=>p.status==='Pago' && !partialsByOrder[p.order_id]).reduce((acc,p)=>acc+p.amount,0)
 
   // Totais do separador (respeitam pesquisa/filtro de obra)
-  const totalToPay = toPay.reduce((acc,p)=>acc+p.remaining,0)
+  const totalToPay = toPay.reduce((acc,p)=>acc+p.remainingExclVat,0)
   const totalToPayVat = toPay.reduce((acc,p)=>acc+p.vatAmount,0)
-  const totalToPayInclVat = totalToPay + totalToPayVat
-  const totalPaidItems = paidItems.reduce((acc,p)=>acc+p.amount,0)
+  const totalToPayInclVat = toPay.reduce((acc,p)=>acc+p.remainingInclVat,0)
+  const totalPaidItems = paidItems.reduce((acc,p)=>acc+p.totalExclVat,0)
   const totalPaidItemsVat = paidItems.reduce((acc,p)=>acc+p.vatAmount,0)
-  const totalPaidItemsInclVat = totalPaidItems + totalPaidItemsVat
+  const totalPaidItemsInclVat = paidItems.reduce((acc,p)=>acc+p.totalInclVat,0)
 
   // Encomendas ainda sem fatura registada (evita duplicar a fatura criada automaticamente ao aprovar a cotação)
   const ordersWithoutInvoice = orders.filter(o => !supplierInvoices.some(inv => inv.order_id === o.id))
@@ -326,13 +340,15 @@ export default function ClientPayments() {
                     <div style={{fontSize:11,marginTop:2}}>
                       {p.vatExempt
                         ? <span style={{color:'var(--green)'}}>✈️ IVA 0% (exportação)</span>
-                        : <span style={{color:'var(--text-muted)'}}>+ € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} IVA ({p.vatRate}%)</span>}
+                        : p.priceIncludesVat
+                          ? <span style={{color:'var(--text-muted)'}}>dos quais € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} de IVA ({p.vatRate}%) — preço já incluía IVA</span>
+                          : <span style={{color:'var(--text-muted)'}}>+ € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} IVA ({p.vatRate}%)</span>}
                     </div>
                     {p.notes && <div style={{fontSize:11,fontStyle:'italic',color:'var(--text-muted)'}}>{p.notes}</div>}
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
                     <div style={{textAlign:'right'}}>
-                      <div style={{fontWeight:600,fontSize:15}}>€ {p.remaining.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
+                      <div style={{fontWeight:600,fontSize:15}}>€ {p.remainingExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
                       <div style={{fontSize:11,color:'var(--text-muted)'}}>c/IVA € {p.remainingInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
                     </div>
                     <span className={`badge ${badgeClass(p)}`}>{badgeLabel(p)}</span>
@@ -370,12 +386,14 @@ export default function ClientPayments() {
                     <div style={{fontSize:11,marginTop:2}}>
                       {p.vatExempt
                         ? <span style={{color:'var(--green)'}}>✈️ IVA 0% (exportação)</span>
-                        : <span style={{color:'var(--text-muted)'}}>+ € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} IVA ({p.vatRate}%)</span>}
+                        : p.priceIncludesVat
+                          ? <span style={{color:'var(--text-muted)'}}>dos quais € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} de IVA ({p.vatRate}%) — preço já incluía IVA</span>
+                          : <span style={{color:'var(--text-muted)'}}>+ € {p.vatAmount.toLocaleString('pt-PT',{minimumFractionDigits:2})} IVA ({p.vatRate}%)</span>}
                     </div>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     <div style={{textAlign:'right'}}>
-                      <div style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {p.amount.toLocaleString('pt-PT',{minimumFractionDigits:2})} ✓</div>
+                      <div style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {p.totalExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})} ✓</div>
                       <div style={{fontSize:11,color:'var(--text-muted)'}}>c/IVA € {p.totalInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
                     </div>
                     {isAdmin && <button className="btn btn-sm" onClick={()=>handleEditPaidAmount(p)} title="Corrigir montante"><i className="ti ti-edit"/></button>}

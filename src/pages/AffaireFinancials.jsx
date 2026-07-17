@@ -55,7 +55,7 @@ export default function AffaireFinancials() {
 
     const [{ data: ord }, { data: cp }, { data: sp }, { data: tr }] = await Promise.all([
       reqIds.length > 0
-        ? supabase.from('orders').select('*, suppliers(name), requisitions(description,ref_number), quotations(vat_rate,vat_exempt), order_partial_payments(amount,payment_date,payment_method,employees(emp_code))').in('requisition_id', reqIds).neq('status','Cancelado').order('created_at',{ascending:false})
+        ? supabase.from('orders').select('*, suppliers(name), requisitions(description,ref_number), quotations(vat_rate,vat_exempt,price_includes_vat), order_partial_payments(amount,payment_date,payment_method,employees(emp_code))').in('requisition_id', reqIds).neq('status','Cancelado').order('created_at',{ascending:false})
         : { data:[] },
       supabase.from('client_payments').select('*').eq('affaire_id', a.id).order('due_date'),
       supabase.from('payments').select('*, orders(ref_number,suppliers(name),requisitions(description))').eq('affaire_id', a.id).order('due_date'),
@@ -270,23 +270,26 @@ export default function AffaireFinancials() {
                   </thead>
                   <tbody>
                     {orders.map(o => {
-                      const total = parseFloat(o.total_amount||0)
+                      const rawTotal = parseFloat(o.total_amount||0)
                       const vatRate = parseFloat(o.quotations?.vat_rate||23)
                       const vatExempt = o.quotations?.vat_exempt||false
-                      const vatAmt = vatExempt ? 0 : total * vatRate/100
-                      const totalInclVat = total + vatAmt
+                      const priceIncludesVat = o.quotations?.price_includes_vat||false
+                      let totalExclVat, vatAmt, totalInclVat
+                      if (vatExempt) { totalExclVat = rawTotal; vatAmt = 0; totalInclVat = rawTotal }
+                      else if (priceIncludesVat) { totalInclVat = rawTotal; totalExclVat = rawTotal/(1+vatRate/100); vatAmt = totalInclVat - totalExclVat }
+                      else { totalExclVat = rawTotal; vatAmt = rawTotal * vatRate/100; totalInclVat = totalExclVat + vatAmt }
                       const paid = o.order_partial_payments?.reduce((a,p)=>a+parseFloat(p.amount||0),0)||0
                       return (
                         <tr key={o.id}>
                           <td style={{fontWeight:600}}>{o.ref_number}</td>
                           <td style={{fontSize:12,maxWidth:130,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.requisitions?.description||'—'}</td>
                           <td style={{fontSize:12}}>{o.suppliers?.name||'—'}</td>
-                          <td>{euro(total)}</td>
+                          <td>{euro(totalExclVat)}</td>
                           <td style={{color:vatExempt?'var(--green)':'var(--amber)',fontSize:12}}>
                             {vatExempt?<span title="IVA recuperável — exportação">✈️ 0%</span>:`+${euro(vatAmt)} (${vatRate}%)`}
                           </td>
                           <td style={{fontWeight:600}}>{euro(totalInclVat)}</td>
-                          <td style={{color:paid>=total?'var(--green)':'var(--amber)',fontSize:12}}>{euro(paid)}</td>
+                          <td style={{color:paid>=totalExclVat?'var(--green)':'var(--amber)',fontSize:12}}>{euro(paid)}</td>
                           <td><span className={`badge ${{Confirmado:'badge-ordered','Em trânsito':'badge-transit',Entregue:'badge-delivered'}[o.status]||''}`}>{o.status}</span></td>
                         </tr>
                       )

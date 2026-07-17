@@ -125,16 +125,6 @@ export default function Quotations() {
     loadQuotes(selReq.id)
   }
 
-  // orders.total_amount / payments.amount são sempre tratados como valor S/IVA no resto da app
-  // (Pagamentos, AffaireFinancials somam o IVA por cima usando quotations.vat_rate) — se o preço da
-  // cotação já incluía IVA, é preciso retirá-lo aqui para não ficar a somar IVA em cima de IVA.
-  const exclVatTotal = (q, quantity) => {
-    const rawTotal = q.final_price * quantity
-    const vatRate = parseFloat(q.vat_rate) || 0
-    if (q.price_includes_vat && !q.vat_exempt && vatRate > 0) return rawTotal / (1 + vatRate/100)
-    return rawTotal
-  }
-
   const handleCancelQuote = async (q) => {
     if (!confirm(`Cancelar a cotação de ${q.suppliers?.name}? Fica registada no histórico, marcada como não aprovada.`)) return
     const { error } = await supabase.from('quotations').update({ rejected: true }).eq('id', q.id)
@@ -149,7 +139,7 @@ export default function Quotations() {
     await supabase.from('quotations').update({ selected: false, rejected: true }).eq('requisition_id', selReq.id).neq('id', q.id)
     await supabase.from('requisitions').update({ status:'Encomendado' }).eq('id', selReq.id)
     const count = Date.now()
-    const total = exclVatTotal(q, selReq.quantity)
+    const total = q.final_price * selReq.quantity
     // Criar encomenda
     const { data: order } = await supabase.from('orders').insert({
       ref_number: `ENC-${String(count).slice(-4)}`,
@@ -186,7 +176,7 @@ export default function Quotations() {
     const { data: existingOrder } = await supabase.from('orders').select('id').eq('quotation_id', approved.id).maybeSingle()
     if (!existingOrder) {
       const count = Date.now()
-      const total = exclVatTotal(approved, selReq.quantity)
+      const total = approved.final_price * selReq.quantity
       const { data: order } = await supabase.from('orders').insert({
         ref_number: `ENC-${String(count).slice(-4)}`,
         requisition_id: selReq.id, quotation_id: approved.id, supplier_id: approved.supplier_id,
