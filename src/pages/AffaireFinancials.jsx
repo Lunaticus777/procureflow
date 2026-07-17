@@ -6,6 +6,19 @@ const STATUS_COLOR = { 'Aberta':'var(--blue)','Em curso':'var(--amber)','Conclu�
 
 const euro = (v, dec=0) => `€ ${parseFloat(v||0).toLocaleString('pt-PT',{minimumFractionDigits:dec})}`
 
+// Mesma lógica usada em Pagamentos/Encomendas: o valor guardado pode já incluir IVA ou não,
+// consoante quotations.price_includes_vat — decompõe sempre nos dois valores, na direcção certa.
+const splitVat = (total, vatExempt, vatRate, priceIncludesVat) => {
+  if (vatExempt || !vatRate) return { vatAmount: 0, totalExclVat: total, totalInclVat: total }
+  if (priceIncludesVat) {
+    const totalExclVat = total / (1 + vatRate/100)
+    return { vatAmount: total - totalExclVat, totalExclVat, totalInclVat: total }
+  }
+  const vatAmount = total * vatRate/100
+  return { vatAmount, totalExclVat: total, totalInclVat: total + vatAmount }
+}
+const vatForOrder = (order, amount) => splitVat(amount, order?.quotations?.vat_exempt||false, parseFloat(order?.quotations?.vat_rate||23), order?.quotations?.price_includes_vat||false)
+
 function Bar({ value, max, color='var(--blue)', height=8, showLabel=true }) {
   const pct = max > 0 ? Math.min(100, Math.round((value/max)*100)) : 0
   const c = pct > 100 ? 'var(--red)' : pct > 85 ? 'var(--amber)' : color
@@ -22,10 +35,10 @@ function Bar({ value, max, color='var(--blue)', height=8, showLabel=true }) {
   )
 }
 
-function Box({ label, value, sub, color, bg, icon, highlight }) {
+function Box({ label, value, sub, color, bg, icon, highlight, help }) {
   return (
-    <div style={{background:bg||'var(--bg)',borderRadius:'var(--radius)',padding:'12px 14px',border:highlight?`1.5px solid ${color||'var(--border)'}`:undefined}}>
-      <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:5}}>{icon} {label}</div>
+    <div title={help} style={{background:bg||'var(--bg)',borderRadius:'var(--radius)',padding:'12px 14px',border:highlight?`1.5px solid ${color||'var(--border)'}`:undefined,cursor:help?'help':undefined}}>
+      <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:5}}>{icon} {label}{help && <i className="ti ti-info-circle" style={{marginLeft:3,fontSize:10}}/>}</div>
       <div style={{fontSize:19,fontWeight:700,color:color||'var(--text)'}}>{euro(value)}</div>
       {sub && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>{sub}</div>}
     </div>
@@ -58,7 +71,7 @@ export default function AffaireFinancials() {
         ? supabase.from('orders').select('*, suppliers(name), requisitions(description,ref_number), quotations(vat_rate,vat_exempt,price_includes_vat), order_partial_payments(amount,payment_date,payment_method,employees(emp_code))').in('requisition_id', reqIds).neq('status','Cancelado').order('created_at',{ascending:false})
         : { data:[] },
       supabase.from('client_payments').select('*').eq('affaire_id', a.id).order('due_date'),
-      supabase.from('payments').select('*, orders(ref_number,suppliers(name),requisitions(description))').eq('affaire_id', a.id).order('due_date'),
+      supabase.from('payments').select('*, orders(ref_number,suppliers(name),requisitions(description),quotations(vat_rate,vat_exempt,price_includes_vat))').eq('affaire_id', a.id).order('due_date'),
       supabase.from('transport_agenda').select('*, carriers(name,vehicle_type)').eq('affaire_id', a.id).order('planned_date'),
     ])
     setOrders(ord||[])
@@ -92,6 +105,20 @@ export default function AffaireFinancials() {
   const margin          = received - totalRealCost
   const marginPct       = received > 0 ? Math.round((margin/received)*100) : 0
   const projectedMargin = (received+pending) - totalRealCost     // se cobrar tudo
+
+  // Veredito de viabilidade num relance, com base na margem projectada (se tudo for cobrado)
+  const projectedMarginPct = (received+pending) > 0 ? Math.round((projectedMargin/(received+pending))*100) : 0
+  const viability = projectedMargin < 0
+    ? { label:'Prejuízo', icon:'🔴', color:'var(--red)', bg:'var(--red-light)' }
+    : projectedMarginPct < 15
+      ? { label:'Margem apertada', icon:'⚠️', color:'var(--amber)', bg:'var(--amber-light)' }
+      : { label:'Rentável', icon:'✅', color:'var(--green)', bg:'var(--green-light)' }
+
+  // Verificação de coerência: soma directa das encomendas (S/IVA) desta obra, calculada a partir
+  // dos mesmos dados da tabela "Encomendas a fornecedores" — compara-se ao resumo (costExclVat)
+  // para detectar resumos desactualizados, tal como acontecia entre Encomendas e Pagamentos.
+  const ordersSumExclVat = orders.reduce((acc,o) => acc + vatForOrder(o, parseFloat(o.total_amount||0)).totalExclVat, 0)
+  const summaryOutOfSync = selected && Math.abs(ordersSumExclVat - costExclVat) > 1
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -181,6 +208,27 @@ export default function AffaireFinancials() {
                 <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
               </div>
 
+              {/* Veredito de viabilidade — resposta directa a "vale a pena?" antes de entrar em detalhe */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'12px 16px',background:viability.bg,borderRadius:'var(--radius)',border:`1.5px solid ${viability.color}`,marginBottom:14,flexWrap:'wrap'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:22}}>{viability.icon}</span>
+                  <div>
+                    <div style={{fontWeight:700,color:viability.color,fontSize:15}}>{viability.label}</div>
+                    <div style={{fontSize:11,color:'var(--text-muted)'}}>margem projectada se tudo for cobrado e pago</div>
+                  </div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:20,fontWeight:800,color:viability.color}}>{projectedMargin>=0?'+':''}{euro(projectedMargin)}</div>
+                  <div style={{fontSize:12,color:'var(--text-muted)'}}>{projectedMarginPct}% de margem</div>
+                </div>
+              </div>
+
+              {summaryOutOfSync && (
+                <div style={{padding:'10px 14px',background:'var(--amber-light)',borderRadius:'var(--radius)',marginBottom:14,fontSize:12,color:'#633806'}}>
+                  ⚠️ O resumo desta obra pode estar desactualizado: as encomendas somam {euro(ordersSumExclVat,2)} (S/IVA) mas o resumo mostra {euro(costExclVat,2)}. Verifica em Encomendas se há valores por sincronizar.
+                </div>
+              )}
+
               {/* RECEITAS */}
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>📥 RECEITAS DO CLIENTE</div>
@@ -201,10 +249,10 @@ export default function AffaireFinancials() {
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>📤 CUSTOS DETALHADOS</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:10}}>
-                  <Box label="Compras s/IVA" value={costExclVat} icon="🛒" color="var(--text)" sub={`${selected.total_supplier_orders} enc.`} />
-                  <Box label="IVA das compras" value={vatPurchases} icon="🧾" color="var(--amber)" sub={vatRecoverable>0?`Recuperável: ${euro(vatRecoverable)}`:'Sem IVA recuperável'} />
-                  <Box label="IVA líquido (a pagar)" value={vatNet} icon="💸" color={vatNet>0?'var(--red)':'var(--green)'} bg={vatNet>0?'var(--red-light)':undefined} sub={vatRecoverable>0?`Recuperado: ${euro(vatRecoverable)}`:'0% de IVA recuperável'} highlight={vatNet>0} />
-                  <Box label="Transportes" value={transportCost} icon="🚛" color="var(--text)" sub={transportVatRec>0?`IVA recup.: ${euro(transportVatRec)}`:'Sem IVA recuperável'} />
+                  <Box label="Compras s/IVA" value={costExclVat} icon="🛒" color="var(--text)" sub={`${selected.total_supplier_orders} enc.`} help="Soma de todas as encomendas a fornecedores desta obra, sem IVA" />
+                  <Box label="IVA das compras" value={vatPurchases} icon="🧾" color="var(--amber)" sub={vatRecoverable>0?`Recuperável: ${euro(vatRecoverable)}`:'Sem IVA recuperável'} help="IVA total cobrado pelos fornecedores nas compras desta obra" />
+                  <Box label="IVA líquido (a pagar)" value={vatNet} icon="💸" color={vatNet>0?'var(--red)':'var(--green)'} bg={vatNet>0?'var(--red-light)':undefined} sub={vatRecoverable>0?`Recuperado: ${euro(vatRecoverable)}`:'0% de IVA recuperável'} highlight={vatNet>0} help="IVA das compras menos o IVA recuperável (ex.: exportações com IVA 0%) — é o que realmente fica como custo" />
+                  <Box label="Transportes" value={transportCost} icon="🚛" color="var(--text)" sub={transportVatRec>0?`IVA recup.: ${euro(transportVatRec)}`:'Sem IVA recuperável'} help="Custo dos transportes agendados para esta obra" />
                 </div>
 
                 {/* Linha do custo real total */}
@@ -253,8 +301,8 @@ export default function AffaireFinancials() {
                   <div style={{padding:'12px 14px',background:'var(--bg)',borderRadius:'var(--radius)'}}>
                     <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',marginBottom:4}}>🏭 PAGAMENTO FORNECEDORES</div>
                     <div style={{fontSize:16,fontWeight:700,color:'var(--green)'}}>{euro(parseFloat(f.total_paid_suppliers||0))}</div>
-                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>pago de {euro(costExclVat)} em compras</div>
-                    <Bar value={parseFloat(f.total_paid_suppliers||0)} max={costExclVat} height={5} showLabel={false}/>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>pago de {euro(costExclVat+vatNet)} em compras (c/IVA)</div>
+                    <Bar value={parseFloat(f.total_paid_suppliers||0)} max={costExclVat+vatNet} height={5} showLabel={false}/>
                   </div>
                 </div>
               </div>
@@ -271,13 +319,9 @@ export default function AffaireFinancials() {
                   <tbody>
                     {orders.map(o => {
                       const rawTotal = parseFloat(o.total_amount||0)
-                      const vatRate = parseFloat(o.quotations?.vat_rate||23)
                       const vatExempt = o.quotations?.vat_exempt||false
-                      const priceIncludesVat = o.quotations?.price_includes_vat||false
-                      let totalExclVat, vatAmt, totalInclVat
-                      if (vatExempt) { totalExclVat = rawTotal; vatAmt = 0; totalInclVat = rawTotal }
-                      else if (priceIncludesVat) { totalInclVat = rawTotal; totalExclVat = rawTotal/(1+vatRate/100); vatAmt = totalInclVat - totalExclVat }
-                      else { totalExclVat = rawTotal; vatAmt = rawTotal * vatRate/100; totalInclVat = totalExclVat + vatAmt }
+                      const vatRate = parseFloat(o.quotations?.vat_rate||23)
+                      const { vatAmount:vatAmt, totalExclVat, totalInclVat } = vatForOrder(o, rawTotal)
                       const paid = o.order_partial_payments?.reduce((a,p)=>a+parseFloat(p.amount||0),0)||0
                       return (
                         <tr key={o.id}>
@@ -352,18 +396,24 @@ export default function AffaireFinancials() {
               <div className="card">
                 <div className="card-header"><span className="card-title">🏭 Faturas fornecedores</span></div>
                 {supplierPayments.length===0 ? <div className="empty">Sem faturas.</div>
-                  : supplierPayments.map(p=>(
+                  : supplierPayments.map(p=>{
+                      const { totalExclVat, totalInclVat } = vatForOrder(p.orders, parseFloat(p.amount||0))
+                      return (
                       <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'0.5px solid var(--border)',fontSize:13}}>
                         <div>
                           <div style={{fontWeight:500}}>{p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· ${p.invoice_ref}`:''}</div>
                           <div style={{fontSize:11,color:'var(--text-muted)'}}>{p.orders?.ref_number} {p.due_date?`· ${new Date(p.due_date).toLocaleDateString('pt-PT')}`:''}</div>
                         </div>
                         <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                          <strong style={{color:p.status==='Pago'?'var(--green)':'var(--red)'}}>{euro(p.amount)}</strong>
+                          <div style={{textAlign:'right'}}>
+                            <strong style={{color:p.status==='Pago'?'var(--green)':'var(--red)'}}>{euro(totalExclVat,2)}</strong>
+                            <div style={{fontSize:10,color:'var(--text-muted)'}}>c/IVA {euro(totalInclVat,2)}</div>
+                          </div>
                           <span className={`badge ${p.status==='Pago'?'badge-delivered':p.status==='Em atraso'?'badge-critical':'badge-pending'}`}>{p.status}</span>
                         </div>
                       </div>
-                    ))
+                      )
+                    })
                 }
               </div>
             </div>
