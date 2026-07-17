@@ -28,7 +28,7 @@ export default function ClientPayments() {
       supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
-      supabase.from('orders').select('id,ref_number,suppliers(name)').not('status','eq','Entregue').order('ref_number'),
+      supabase.from('orders').select('id,ref_number,total_amount,status,suppliers(name),quotations(vat_rate,vat_exempt,price_includes_vat)').order('ref_number'),
     ])
     setClientPayments(cp||[])
     setSupplierInvoices(sp||[])
@@ -205,6 +205,12 @@ export default function ClientPayments() {
   const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalSupplierPaid = totalPartialsPaid + enrichedInvoicesAll.filter(p=>p.status==='Pago' && !partialsByOrder[p.order_id]).reduce((acc,p)=>acc+p.amount,0)
 
+  // Valor total das encomendas (Confirmado + Em trânsito + Entregue) — igual ao mostrado em Encomendas,
+  // independente de já haver ou não fatura registada, para servir de referência/conferência.
+  const activeOrdersForTotal = orders.filter(o => ['Confirmado','Em trânsito','Entregue'].includes(o.status))
+  const totalOrdersExclVat = activeOrdersForTotal.reduce((acc,o) => acc + vatFor(o, parseFloat(o.total_amount||0)).totalExclVat, 0)
+  const totalOrdersInclVat = activeOrdersForTotal.reduce((acc,o) => acc + vatFor(o, parseFloat(o.total_amount||0)).totalInclVat, 0)
+
   // Totais do separador (respeitam pesquisa/filtro de obra)
   const totalToPay = toPay.reduce((acc,p)=>acc+p.remainingExclVat,0)
   const totalToPayVat = toPay.reduce((acc,p)=>acc+p.vatAmount,0)
@@ -214,7 +220,7 @@ export default function ClientPayments() {
   const totalPaidItemsInclVat = paidItems.reduce((acc,p)=>acc+p.totalInclVat,0)
 
   // Encomendas ainda sem fatura registada (evita duplicar a fatura criada automaticamente ao aprovar a cotação)
-  const ordersWithoutInvoice = orders.filter(o => !supplierInvoices.some(inv => inv.order_id === o.id))
+  const ordersWithoutInvoice = orders.filter(o => o.status!=='Entregue' && !supplierInvoices.some(inv => inv.order_id === o.id))
 
   if (loading) return <div className="loading"><i className="ti ti-loader-2"/>A carregar...</div>
 
@@ -225,6 +231,7 @@ export default function ClientPayments() {
         <div className="metric"><div className="metric-label">Recebido de clientes</div><div className="metric-value text-green">€ {totalClientReceived.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Faturas por pagar (S/IVA)</div><div className="metric-value text-red">€ {totalSupplierToPay.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div><div className="metric-sub">c/IVA: € {totalSupplierToPayInclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Pago a fornecedores</div><div className="metric-value text-green">€ {(totalSupplierPaid + totalPartialsPaid).toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">Valor encomendas (S/IVA)</div><div className="metric-value text-blue">€ {totalOrdersExclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div><div className="metric-sub">c/IVA: € {totalOrdersInclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})} · Confirmado+Trânsito+Entregue</div></div>
       </div>
 
       {showForm && (
