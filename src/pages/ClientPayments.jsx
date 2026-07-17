@@ -108,6 +108,11 @@ export default function ClientPayments() {
     const table = item.kind === 'partial' ? 'order_partial_payments' : 'payments'
     const { error } = await supabase.from(table).update({ amount:newAmount }).eq('id', item.id)
     if (error) { alert('Erro: ' + error.message); return }
+    // Uma fatura ('invoice') representa o valor total da encomenda — sincroniza para não voltar
+    // a divergir de orders.total_amount (um pagamento parcial não, porque é só uma fracção)
+    if (item.kind !== 'partial' && item.orderId) {
+      await supabase.from('orders').update({ total_amount:newAmount }).eq('id', item.orderId)
+    }
     load()
   }
 
@@ -229,7 +234,7 @@ export default function ClientPayments() {
   // Faturas pendentes de encomendas entretanto canceladas deixam de ter sentido em "por pagar"
   const toPay = [...enrichedInvoicesFiltered.filter(p => !p.isPaid && !p.isCancelledOrder), ...unbilledItems]
   const paidItems = [
-    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, isCancelledOrder:p.orders?.status==='Cancelado', ...vatFor(p.orders, p.amount) })),
+    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, orderId:p.order_id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, isCancelledOrder:p.orders?.status==='Cancelado', ...vatFor(p.orders, p.amount) })),
     ...filteredPartials.map(p => { const amount = parseFloat(p.amount||0); return { kind:'partial', id:p.id, date:p.payment_date, amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference, isCancelledOrder:p.orders?.status==='Cancelado', ...vatFor(p.orders, amount) } }),
   ].sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
 

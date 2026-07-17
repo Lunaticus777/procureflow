@@ -192,16 +192,21 @@ export default function Orders() {
             </div>
             <div style={{fontSize:13,marginBottom:12}}>
               <div style={{marginBottom:4,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                <span style={{color:'var(--text-muted)'}}>Qtd: </span>{selected.quantity} · <span style={{color:'var(--text-muted)'}}>Valor (S/IVA): </span>
+                <span style={{color:'var(--text-muted)'}}>Qtd: </span>{selected.quantity} · <span style={{color:'var(--text-muted)'}}>Valor: </span>
                 {editingTotal ? (
                   <>
+                    <span style={{fontSize:11,color:'var(--text-muted)'}}>(valor conforme cotação{selected.quotations?.price_includes_vat?', já com IVA incluído':', S/IVA'})</span>
                     <input type="number" step="0.01" defaultValue={selected.total_amount} id="total-input" style={{width:110,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'3px 6px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
                     <button className="btn btn-sm btn-primary" onClick={handleSaveTotal}>OK</button>
                     <button className="btn btn-sm" onClick={()=>setEditingTotal(false)}>✕</button>
                   </>
                 ) : (
                   <>
-                    <strong>{selected.total_amount?`€ ${parseFloat(selected.total_amount).toLocaleString('pt-PT')}`:'-'}</strong>
+                    {(() => {
+                      const total = parseFloat(selected.total_amount||0)
+                      const { totalExclVat, totalInclVat } = splitVat(total, selected.quotations?.vat_exempt||false, parseFloat(selected.quotations?.vat_rate||23), selected.quotations?.price_includes_vat||false)
+                      return <strong>S/IVA € {totalExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})} · C/IVA € {totalInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
+                    })()}
                     {isAdmin && <button className="btn btn-sm" onClick={()=>setEditingTotal(true)} title="Corrigir valor"><i className="ti ti-edit"/></button>}
                   </>
                 )}
