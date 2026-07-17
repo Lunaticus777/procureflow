@@ -100,6 +100,17 @@ export default function ClientPayments() {
     load()
   }
 
+  const handleEditPaidAmount = async (item) => {
+    const v = prompt(`Corrigir montante pago (ex.: para remover IVA duplicado). Valor actual: € ${item.amount.toFixed(2)}`, item.amount)
+    if (v == null) return
+    const newAmount = parseFloat(v)
+    if (!newAmount || newAmount <= 0) return
+    const table = item.kind === 'partial' ? 'order_partial_payments' : 'payments'
+    const { error } = await supabase.from(table).update({ amount:newAmount }).eq('id', item.id)
+    if (error) { alert('Erro: ' + error.message); return }
+    load()
+  }
+
   const handleSave = async () => {
     if (!form.amount) return
     setSaving(true)
@@ -367,6 +378,7 @@ export default function ClientPayments() {
                       <div style={{fontWeight:600,fontSize:15,color:'var(--green)'}}>€ {p.amount.toLocaleString('pt-PT',{minimumFractionDigits:2})} ✓</div>
                       <div style={{fontSize:11,color:'var(--text-muted)'}}>c/IVA € {p.totalInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</div>
                     </div>
+                    {isAdmin && <button className="btn btn-sm" onClick={()=>handleEditPaidAmount(p)} title="Corrigir montante"><i className="ti ti-edit"/></button>}
                     {isAdmin && <button className="btn btn-sm" style={{color:'var(--red)'}} onClick={()=>handleDeletePayment(p.id,p.kind==='partial'?'partial':'invoice')} title="Apagar"><i className="ti ti-trash"/></button>}
                   </div>
                 </div>

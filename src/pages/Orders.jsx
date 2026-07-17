@@ -45,8 +45,8 @@ export default function Orders() {
     const newTotal = parseFloat(v)
     if (!newTotal || newTotal <= 0) return
     await supabase.from('orders').update({ total_amount:newTotal }).eq('id',selected.id)
-    // Sincroniza a fatura fornecedor associada, se ainda estiver pendente
-    await supabase.from('payments').update({ amount:newTotal }).eq('order_id',selected.id).eq('status','Pendente')
+    // Sincroniza a fatura fornecedor associada (Pendente ou já Paga, para corrigir registos antigos com o IVA duplicado)
+    await supabase.from('payments').update({ amount:newTotal }).eq('order_id',selected.id)
     setSelected({...selected, total_amount:newTotal})
     setEditingTotal(false)
     load()
