@@ -24,8 +24,8 @@ export default function ClientPayments() {
   const load = async () => {
     const [{ data: cp }, { data: sp }, { data: pp }, { data: cl }, { data: af }, { data: or }] = await Promise.all([
       supabase.from('client_payments').select('*, clients(name), affaires(name,ref_number,id), client_orders(ref_number)').order('due_date'),
-      supabase.from('payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description,affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat))').order('due_date'),
-      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
+      supabase.from('payments').select('*, orders(ref_number, total_amount, status, suppliers(name), requisitions(description,affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat))').order('due_date'),
+      supabase.from('order_partial_payments').select('*, orders(ref_number, total_amount, status, suppliers(name), requisitions(description, affaire_id, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat)), employees(full_name,emp_code)').order('payment_date',{ascending:false}),
       supabase.from('clients').select('id,name').eq('active',true).order('name'),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
       supabase.from('orders').select('id,ref_number,total_amount,status,suppliers(name),requisitions(description,affaires(name,ref_number,id)),quotations(vat_rate,vat_exempt,price_includes_vat)').order('ref_number'),
@@ -184,7 +184,8 @@ export default function ClientPayments() {
     const priceIncludesVat = p.orders?.quotations?.price_includes_vat || false
     const { vatAmount, totalExclVat: remainingExclVat, totalInclVat: remainingInclVat } = splitVat(remaining, vatExempt, vatRate, priceIncludesVat)
     const isDuplicate = p.order_id && orderInvoiceCounts[p.order_id] > 1
-    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isDuplicate, isPaid: p.status==='Pago' || remaining<=0.01 }
+    const isCancelledOrder = p.orders?.status === 'Cancelado'
+    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isDuplicate, isCancelledOrder, isPaid: p.status==='Pago' || remaining<=0.01 }
   }
   const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
   const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
@@ -225,18 +226,19 @@ export default function ClientPayments() {
     }
   })
 
-  const toPay = [...enrichedInvoicesFiltered.filter(p => !p.isPaid), ...unbilledItems]
+  // Faturas pendentes de encomendas entretanto canceladas deixam de ter sentido em "por pagar"
+  const toPay = [...enrichedInvoicesFiltered.filter(p => !p.isPaid && !p.isCancelledOrder), ...unbilledItems]
   const paidItems = [
-    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, ...vatFor(p.orders, p.amount) })),
-    ...filteredPartials.map(p => { const amount = parseFloat(p.amount||0); return { kind:'partial', id:p.id, date:p.payment_date, amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference, ...vatFor(p.orders, amount) } }),
+    ...paidInvoicesOnly.map(p => ({ kind:'invoice', id:p.id, date:p.paid_date, amount:p.amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, invoiceRef:p.invoice_ref, isCancelledOrder:p.orders?.status==='Cancelado', ...vatFor(p.orders, p.amount) })),
+    ...filteredPartials.map(p => { const amount = parseFloat(p.amount||0); return { kind:'partial', id:p.id, date:p.payment_date, amount, supplier:p.orders?.suppliers?.name, orderRef:p.orders?.ref_number, desc:p.orders?.requisitions?.description, affaire:p.orders?.requisitions?.affaires, method:p.payment_method, empCode:p.employees?.emp_code, reference:p.reference, isCancelledOrder:p.orders?.status==='Cancelado', ...vatFor(p.orders, amount) } }),
   ].sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
 
   // Totais (sempre sobre o universo completo, independente da pesquisa/filtro)
   const totalClientPending = clientPayments.filter(p=>p.status!=='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalClientReceived = clientPayments.filter(p=>p.status==='Pago').reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
-  const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remainingExclVat,0)
-  const totalSupplierToPayVat = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.vatAmount,0)
-  const totalSupplierToPayInclVat = enrichedInvoicesAll.filter(p=>!p.isPaid).reduce((acc,p)=>acc+p.remainingInclVat,0)
+  const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid && !p.isCancelledOrder).reduce((acc,p)=>acc+p.remainingExclVat,0)
+  const totalSupplierToPayVat = enrichedInvoicesAll.filter(p=>!p.isPaid && !p.isCancelledOrder).reduce((acc,p)=>acc+p.vatAmount,0)
+  const totalSupplierToPayInclVat = enrichedInvoicesAll.filter(p=>!p.isPaid && !p.isCancelledOrder).reduce((acc,p)=>acc+p.remainingInclVat,0)
   const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
   const totalSupplierPaid = totalPartialsPaid + enrichedInvoicesAll.filter(p=>p.status==='Pago' && !partialsByOrder[p.order_id]).reduce((acc,p)=>acc+p.amount,0)
 
@@ -250,9 +252,11 @@ export default function ClientPayments() {
   const totalToPay = toPay.reduce((acc,p)=>acc+p.remainingExclVat,0)
   const totalToPayVat = toPay.reduce((acc,p)=>acc+p.vatAmount,0)
   const totalToPayInclVat = toPay.reduce((acc,p)=>acc+p.remainingInclVat,0)
-  const totalPaidItems = paidItems.reduce((acc,p)=>acc+p.totalExclVat,0)
-  const totalPaidItemsVat = paidItems.reduce((acc,p)=>acc+p.vatAmount,0)
-  const totalPaidItemsInclVat = paidItems.reduce((acc,p)=>acc+p.totalInclVat,0)
+  // Pagamentos de encomendas canceladas ficam visíveis na lista (histórico) mas fora do total,
+  // para o total continuar comparável com "Valor encomendas" (que também exclui Cancelado).
+  const totalPaidItems = paidItems.filter(p=>!p.isCancelledOrder).reduce((acc,p)=>acc+p.totalExclVat,0)
+  const totalPaidItemsVat = paidItems.filter(p=>!p.isCancelledOrder).reduce((acc,p)=>acc+p.vatAmount,0)
+  const totalPaidItemsInclVat = paidItems.filter(p=>!p.isCancelledOrder).reduce((acc,p)=>acc+p.totalInclVat,0)
 
   // Encomendas ainda sem fatura registada (evita duplicar a fatura criada automaticamente ao aprovar a cotação)
   const ordersWithoutInvoice = orders.filter(o => o.status!=='Cancelado' && !supplierInvoices.some(inv => inv.order_id === o.id))
@@ -428,12 +432,18 @@ export default function ClientPayments() {
                 <strong style={{color:'var(--green)'}}>Total pago: € {totalPaidItems.toLocaleString('pt-PT',{minimumFractionDigits:2})} (S/IVA)</strong>
                 <span style={{color:'var(--text-muted)',marginLeft:8}}>· € {totalPaidItemsInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})} (C/IVA) · {paidItems.length} pagamento(s)</span>
               </div>
+              {paidItems.some(p=>p.isCancelledOrder) && (
+                <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:12,color:'#633806'}}>
+                  ℹ️ Há pagamento(s) de encomendas entretanto canceladas (marcados "Encomenda cancelada" abaixo) — ficam visíveis para histórico, mas não entram no total acima nem em "Valor encomendas".
+                </div>
+              )}
               {paidItems.map(p=>(
                 <div key={`${p.kind}-${p.id}`} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
                   <div>
                     <div style={{fontWeight:500,fontSize:13}}>
                       {p.supplier||'—'} · {p.orderRef||'—'}
                       <span style={{fontWeight:400,fontSize:12,color:'var(--text-muted)',marginLeft:6}}>{p.kind==='partial'?`via ${p.method||'—'}`:'fatura paga directamente'}</span>
+                      {p.isCancelledOrder && <span style={{marginLeft:6,fontSize:10,background:'var(--text-muted)',color:'white',padding:'1px 6px',borderRadius:10,fontWeight:600}}>Encomenda cancelada</span>}
                     </div>
                     <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
                       {p.desc?.slice(0,50)||''}
