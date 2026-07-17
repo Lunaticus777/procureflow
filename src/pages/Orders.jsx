@@ -23,7 +23,7 @@ export default function Orders() {
 
   const load = async () => {
     const [{ data: ord }, { data: aff }] = await Promise.all([
-      supabase.from('orders').select('*, suppliers(name), requisitions(ref_number, description, affaires(name,ref_number,id)), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
+      supabase.from('orders').select('*, suppliers(name), requisitions(ref_number, description, affaires(name,ref_number,id)), quotations(vat_rate,vat_exempt,price_includes_vat), delivery_type, delivery_address, delivery_city, delivery_notes').order('created_at',{ascending:false}),
       supabase.from('affaires').select('id,name,ref_number').not('status','eq','Cancelada').order('ref_number'),
     ])
     setOrders(ord||[])
@@ -95,13 +95,34 @@ export default function Orders() {
     return matchSearch && matchAffaire && matchStatus
   })
 
+  // O total_amount guardado é exactamente o valor da cotação aprovada — S/IVA ou C/IVA consoante
+  // quotations.price_includes_vat. Decompomos aqui nos dois valores, na direcção certa.
+  const splitVat = (total, vatExempt, vatRate, priceIncludesVat) => {
+    if (vatExempt || !vatRate) return { totalExclVat: total, totalInclVat: total }
+    if (priceIncludesVat) {
+      const totalExclVat = total / (1 + vatRate/100)
+      return { totalExclVat, totalInclVat: total }
+    }
+    return { totalExclVat: total, totalInclVat: total * (1 + vatRate/100) }
+  }
+
   // Valor total das encomendas (Confirmado + Em trânsito + Entregue), independente do filtro de estado
-  const totalActiveValue = orders.filter(o => {
+  const activeOrdersForTotal = orders.filter(o => {
     const s = search.toLowerCase()
     const matchSearch = !s || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.suppliers?.name?.toLowerCase().includes(s)
     const matchAffaire = !filterAffaire || o.requisitions?.affaires?.id === filterAffaire || o.requisitions?.affaires?.ref_number === filterAffaire
     return matchSearch && matchAffaire && ['Confirmado','Em trânsito','Entregue'].includes(o.status)
-  }).reduce((acc,o)=>acc+parseFloat(o.total_amount||0),0)
+  })
+  const totalActiveExclVat = activeOrdersForTotal.reduce((acc,o) => {
+    const total = parseFloat(o.total_amount||0)
+    const { totalExclVat } = splitVat(total, o.quotations?.vat_exempt||false, parseFloat(o.quotations?.vat_rate||23), o.quotations?.price_includes_vat||false)
+    return acc + totalExclVat
+  }, 0)
+  const totalActiveInclVat = activeOrdersForTotal.reduce((acc,o) => {
+    const total = parseFloat(o.total_amount||0)
+    const { totalInclVat } = splitVat(total, o.quotations?.vat_exempt||false, parseFloat(o.quotations?.vat_rate||23), o.quotations?.price_includes_vat||false)
+    return acc + totalInclVat
+  }, 0)
 
   const totalPaid = partialPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0)
   const totalPending = selected ? parseFloat(selected.total_amount||0)-totalPaid : 0
@@ -115,7 +136,8 @@ export default function Orders() {
       <div className="card" style={{margin:0,borderRadius:0,border:'none',flex:1}}>
         <div className="card-header"><span className="card-title">Encomendas ({filtered.length}{filtered.length!==orders.length?` / ${orders.length}`:''})</span></div>
         <div style={{padding:'8px 12px',background:'var(--blue-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
-          <strong style={{color:'var(--blue)'}}>Valor total (Confirmado + Em trânsito + Entregue): € {totalActiveValue.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
+          <strong style={{color:'var(--blue)'}}>Valor total (Confirmado + Em trânsito + Entregue) — S/IVA: € {totalActiveExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
+          <span style={{color:'var(--text-muted)',marginLeft:8}}>· C/IVA: € {totalActiveInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</span>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:140,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
