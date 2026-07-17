@@ -95,12 +95,12 @@ export default function Orders() {
     return matchSearch && matchAffaire && matchStatus
   })
 
-  // Valor total das encomendas activas (Confirmado + Em trânsito), independente do filtro de estado
+  // Valor total das encomendas (Confirmado + Em trânsito + Entregue), independente do filtro de estado
   const totalActiveValue = orders.filter(o => {
     const s = search.toLowerCase()
     const matchSearch = !s || o.ref_number?.toLowerCase().includes(s) || o.requisitions?.ref_number?.toLowerCase().includes(s) || o.requisitions?.description?.toLowerCase().includes(s) || o.suppliers?.name?.toLowerCase().includes(s)
     const matchAffaire = !filterAffaire || o.requisitions?.affaires?.id === filterAffaire || o.requisitions?.affaires?.ref_number === filterAffaire
-    return matchSearch && matchAffaire && ['Confirmado','Em trânsito'].includes(o.status)
+    return matchSearch && matchAffaire && ['Confirmado','Em trânsito','Entregue'].includes(o.status)
   }).reduce((acc,o)=>acc+parseFloat(o.total_amount||0),0)
 
   const totalPaid = partialPayments.reduce((s,p)=>s+parseFloat(p.amount||0),0)
@@ -115,7 +115,7 @@ export default function Orders() {
       <div className="card" style={{margin:0,borderRadius:0,border:'none',flex:1}}>
         <div className="card-header"><span className="card-title">Encomendas ({filtered.length}{filtered.length!==orders.length?` / ${orders.length}`:''})</span></div>
         <div style={{padding:'8px 12px',background:'var(--blue-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:13}}>
-          <strong style={{color:'var(--blue)'}}>Valor total em curso (Confirmado + Em trânsito): € {totalActiveValue.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
+          <strong style={{color:'var(--blue)'}}>Valor total (Confirmado + Em trânsito + Entregue): € {totalActiveValue.toLocaleString('pt-PT',{minimumFractionDigits:2})}</strong>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." style={{flex:1,minWidth:140,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'6px 10px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
