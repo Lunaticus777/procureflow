@@ -100,6 +100,17 @@ export default function Quotations() {
         vat_rate: parseFloat(form.vat_rate)||23, vat_exempt: form.vat_exempt, price_includes_vat: form.price_includes_vat,
         delivery_type: form.delivery_type||null, delivery_address: form.delivery_address||null, delivery_city: form.delivery_city||null,
       }).eq('id', editQuote.id)
+      // Se esta cotação já estava aprovada, a encomenda/fatura criadas ficam com o preço antigo
+      // a não ser que se sincronizem aqui também com o novo valor.
+      if (editQuote.selected) {
+        const { data: linkedOrder } = await supabase.from('orders').select('id').eq('quotation_id', editQuote.id).maybeSingle()
+        if (linkedOrder) {
+          const newFinalPrice = parseFloat(form.unit_price) * (1 - (parseFloat(form.discount_pct)||0)/100)
+          const newTotal = newFinalPrice * selReq.quantity
+          await supabase.from('orders').update({ total_amount:newTotal }).eq('id', linkedOrder.id)
+          await supabase.from('payments').update({ amount:newTotal }).eq('order_id', linkedOrder.id)
+        }
+      }
     } else {
       await supabase.from('quotations').insert({
         requisition_id: selReq.id, supplier_id: form.supplier_id, created_by: emp?.id||null,
