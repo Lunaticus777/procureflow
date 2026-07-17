@@ -168,6 +168,13 @@ export default function ClientPayments() {
     return { vatAmount, totalExclVat: total, totalInclVat: total + vatAmount }
   }
 
+  // Deteta encomendas com mais do que uma fatura registada (duplicados) — inflacionam os totais
+  const orderInvoiceCounts = supplierInvoices.reduce((acc,p) => {
+    if (!p.order_id) return acc
+    acc[p.order_id] = (acc[p.order_id]||0) + 1
+    return acc
+  }, {})
+
   const enrichInvoice = (p) => {
     const amount = parseFloat(p.amount||0)
     const paidViaPartials = partialsByOrder[p.order_id] || 0
@@ -176,7 +183,8 @@ export default function ClientPayments() {
     const vatRate = parseFloat(p.orders?.quotations?.vat_rate ?? 23)
     const priceIncludesVat = p.orders?.quotations?.price_includes_vat || false
     const { vatAmount, totalExclVat: remainingExclVat, totalInclVat: remainingInclVat } = splitVat(remaining, vatExempt, vatRate, priceIncludesVat)
-    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isPaid: p.status==='Pago' || remaining<=0.01 }
+    const isDuplicate = p.order_id && orderInvoiceCounts[p.order_id] > 1
+    return { ...p, amount, paidViaPartials, remaining, vatExempt, vatRate, priceIncludesVat, vatAmount, remainingExclVat, remainingInclVat, isDuplicate, isPaid: p.status==='Pago' || remaining<=0.01 }
   }
   const enrichedInvoicesAll = supplierInvoices.map(enrichInvoice)
   const enrichedInvoicesFiltered = filteredInvoices.map(enrichInvoice)
@@ -333,10 +341,18 @@ export default function ClientPayments() {
                 <strong style={{color:'var(--red)'}}>Total em aberto: € {totalToPay.toLocaleString('pt-PT',{minimumFractionDigits:2})} (S/IVA)</strong>
                 <span style={{color:'var(--text-muted)',marginLeft:8}}>· € {totalToPayInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})} (C/IVA) · {toPay.length} fatura(s)</span>
               </div>
+              {toPay.some(p=>p.isDuplicate) && (
+                <div style={{padding:'8px 12px',background:'var(--amber-light)',borderRadius:'var(--radius)',marginBottom:12,fontSize:12,color:'#633806'}}>
+                  ⚠️ Há encomendas com mais do que uma fatura registada (marcadas "Duplicado" abaixo) — isso infla o total. Apaga a fatura a mais em cada uma.
+                </div>
+              )}
               {toPay.map(p=>(
                 <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border)',flexWrap:'wrap',gap:8}}>
                   <div>
-                    <div style={{fontWeight:500,fontSize:13}}>{p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}</div>
+                    <div style={{fontWeight:500,fontSize:13}}>
+                      {p.orders?.suppliers?.name||'—'} {p.invoice_ref?`· Fatura: ${p.invoice_ref}`:''}
+                      {p.isDuplicate && <span style={{marginLeft:6,fontSize:10,background:'var(--red)',color:'white',padding:'1px 6px',borderRadius:10,fontWeight:600}}>⚠️ Duplicado</span>}
+                    </div>
                     <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
                       {p.orders?.ref_number||'—'}
                       {p.orders?.requisitions?.description ? ` · ${p.orders.requisitions.description.slice(0,40)}` : ''}
