@@ -125,6 +125,16 @@ export default function Quotations() {
     loadQuotes(selReq.id)
   }
 
+  // orders.total_amount / payments.amount são sempre tratados como valor S/IVA no resto da app
+  // (Pagamentos, AffaireFinancials somam o IVA por cima usando quotations.vat_rate) — se o preço da
+  // cotação já incluía IVA, é preciso retirá-lo aqui para não ficar a somar IVA em cima de IVA.
+  const exclVatTotal = (q, quantity) => {
+    const rawTotal = q.final_price * quantity
+    const vatRate = parseFloat(q.vat_rate) || 0
+    if (q.price_includes_vat && !q.vat_exempt && vatRate > 0) return rawTotal / (1 + vatRate/100)
+    return rawTotal
+  }
+
   const handleCancelQuote = async (q) => {
     if (!confirm(`Cancelar a cotação de ${q.suppliers?.name}? Fica registada no histórico, marcada como não aprovada.`)) return
     const { error } = await supabase.from('quotations').update({ rejected: true }).eq('id', q.id)
@@ -139,7 +149,7 @@ export default function Quotations() {
     await supabase.from('quotations').update({ selected: false, rejected: true }).eq('requisition_id', selReq.id).neq('id', q.id)
     await supabase.from('requisitions').update({ status:'Encomendado' }).eq('id', selReq.id)
     const count = Date.now()
-    const total = q.final_price * selReq.quantity
+    const total = exclVatTotal(q, selReq.quantity)
     // Criar encomenda
     const { data: order } = await supabase.from('orders').insert({
       ref_number: `ENC-${String(count).slice(-4)}`,
@@ -176,7 +186,7 @@ export default function Quotations() {
     const { data: existingOrder } = await supabase.from('orders').select('id').eq('quotation_id', approved.id).maybeSingle()
     if (!existingOrder) {
       const count = Date.now()
-      const total = approved.final_price * selReq.quantity
+      const total = exclVatTotal(approved, selReq.quantity)
       const { data: order } = await supabase.from('orders').insert({
         ref_number: `ENC-${String(count).slice(-4)}`,
         requisition_id: selReq.id, quotation_id: approved.id, supplier_id: approved.supplier_id,
@@ -589,16 +599,26 @@ export default function Quotations() {
                         const qty = parseFloat(selReq?.quantity)||1
                         const vatRate = parseFloat(form.vat_rate)||0
                         const priceAfterDisc = unitPrice * (1 - disc/100)
-                        const totalExclVat = priceAfterDisc * qty
-                        const vatAmount = form.vat_exempt ? 0 : totalExclVat * vatRate/100
-                        const totalInclVat = totalExclVat + vatAmount
+                        const rawTotal = priceAfterDisc * qty
+                        let totalExclVat, vatAmount, totalInclVat
+                        if (form.vat_exempt) {
+                          totalExclVat = rawTotal; vatAmount = 0; totalInclVat = rawTotal
+                        } else if (form.price_includes_vat) {
+                          totalInclVat = rawTotal
+                          totalExclVat = rawTotal / (1 + vatRate/100)
+                          vatAmount = totalInclVat - totalExclVat
+                        } else {
+                          totalExclVat = rawTotal
+                          vatAmount = rawTotal * vatRate/100
+                          totalInclVat = totalExclVat + vatAmount
+                        }
                         return (
                           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 16px'}}>
                             <div><span style={{color:'var(--text-muted)'}}>Preço unit. s/ desconto: </span>€ {unitPrice.toFixed(2)}</div>
                             <div><span style={{color:'var(--text-muted)'}}>Após desconto ({disc}%): </span><strong>€ {priceAfterDisc.toFixed(2)}</strong></div>
                             <div><span style={{color:'var(--text-muted)'}}>Total s/IVA ({qty} {selReq?.unit}): </span><strong style={{color:'var(--blue)'}}>€ {totalExclVat.toFixed(2)}</strong></div>
                             {!form.vat_exempt && <div><span style={{color:'var(--text-muted)'}}>IVA {vatRate}%: </span>€ {vatAmount.toFixed(2)}</div>}
-                            {!form.vat_exempt && <div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Total c/IVA: </span><strong style={{color:'var(--amber)'}}>€ {totalInclVat.toFixed(2)}</strong></div>}
+                            {!form.vat_exempt && <div style={{gridColumn:'1/-1'}}><span style={{color:'var(--text-muted)'}}>Total c/IVA: </span><strong style={{color:'var(--amber)'}}>€ {totalInclVat.toFixed(2)}</strong>{form.price_includes_vat && <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:400}}> (preço inserido já incluía o IVA)</span>}</div>}
                             {form.vat_exempt && <div style={{gridColumn:'1/-1',color:'var(--green)',fontWeight:500}}>✈️ IVA 0% — exportação — IVA recuperável: € 0,00</div>}
                           </div>
                         )
@@ -654,16 +674,28 @@ export default function Quotations() {
                         <div className="quote-field"><span style={{color:'var(--text-muted)'}}>Pagamento</span><span>{q.payment_terms}</span></div>
                         <div className="quote-field">
                           <span style={{color:'var(--text-muted)'}}>IVA</span>
-                          <span style={{color:q.vat_exempt?'var(--green)':''}}>{q.vat_exempt?"✈️ 0% (exportação)":((q.vat_rate||23)+"%")}</span>
+                          <span style={{color:q.vat_exempt?'var(--green)':''}}>{q.vat_exempt?"✈️ 0% (exportação)":((q.vat_rate||23)+"%")}{q.price_includes_vat?" (incluído no preço)":""}</span>
                         </div>
-                        {!q.vat_exempt && q.vat_rate > 0 && (
-                          <div className="quote-field">
-                            <span style={{color:'var(--text-muted)'}}>Total c/IVA</span>
-                            <span style={{fontWeight:600,color:'var(--amber)'}}>
-                              € {(parseFloat(q.final_price) * parseFloat(selReq?.quantity||1) * (1+(parseFloat(q.vat_rate||23)/100))).toLocaleString('pt-PT',{minimumFractionDigits:2})}
-                            </span>
-                          </div>
-                        )}
+                        {!q.vat_exempt && q.vat_rate > 0 && (() => {
+                          const rawTotal = parseFloat(q.final_price) * parseFloat(selReq?.quantity||1)
+                          const vatRate = parseFloat(q.vat_rate||23)
+                          const totalInclVat = q.price_includes_vat ? rawTotal : rawTotal * (1+vatRate/100)
+                          const totalExclVat = q.price_includes_vat ? rawTotal / (1+vatRate/100) : rawTotal
+                          return (
+                            <>
+                              <div className="quote-field">
+                                <span style={{color:'var(--text-muted)'}}>Total s/IVA</span>
+                                <span>€ {totalExclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}</span>
+                              </div>
+                              <div className="quote-field">
+                                <span style={{color:'var(--text-muted)'}}>Total c/IVA</span>
+                                <span style={{fontWeight:600,color:'var(--amber)'}}>
+                                  € {totalInclVat.toLocaleString('pt-PT',{minimumFractionDigits:2})}
+                                </span>
+                              </div>
+                            </>
+                          )
+                        })()}
                         {q.notes && <div style={{fontSize:11,color:'var(--text-muted)',marginTop:6,fontStyle:'italic',padding:'4px 6px',background:'var(--bg)',borderRadius:4}}>{q.notes}</div>}
                         {q.delivery_type && (
                           <div style={{fontSize:11,marginTop:6,padding:'4px 6px',background:'var(--green-light)',borderRadius:4,color:'var(--green)',fontWeight:500}}>

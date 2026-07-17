@@ -19,6 +19,7 @@ export default function Orders() {
   const [filterStatus, setFilterStatus] = useState('')
   const [payForm, setPayForm] = useState({ amount:'', payment_date:'', payment_method:'Transferência', reference:'', notes:'' })
   const [saving, setSaving] = useState(false)
+  const [editingTotal, setEditingTotal] = useState(false)
 
   const load = async () => {
     const [{ data: ord }, { data: aff }] = await Promise.all([
@@ -37,7 +38,19 @@ export default function Orders() {
 
   useEffect(() => { load() }, [])
 
-  const selectOrder = (o) => { setSelected(o); loadPayments(o.id) }
+  const selectOrder = (o) => { setSelected(o); setEditingTotal(false); loadPayments(o.id) }
+
+  const handleSaveTotal = async () => {
+    const v = document.getElementById('total-input').value
+    const newTotal = parseFloat(v)
+    if (!newTotal || newTotal <= 0) return
+    await supabase.from('orders').update({ total_amount:newTotal }).eq('id',selected.id)
+    // Sincroniza a fatura fornecedor associada, se ainda estiver pendente
+    await supabase.from('payments').update({ amount:newTotal }).eq('order_id',selected.id).eq('status','Pendente')
+    setSelected({...selected, total_amount:newTotal})
+    setEditingTotal(false)
+    load()
+  }
 
   const handleDelete = async (id) => {
     if (!confirm('Apagar esta encomenda? Os pagamentos associados também serão apagados.')) return
@@ -145,7 +158,21 @@ export default function Orders() {
               <button className="btn btn-sm" onClick={()=>setSelected(null)}><i className="ti ti-x"/></button>
             </div>
             <div style={{fontSize:13,marginBottom:12}}>
-              <div style={{marginBottom:4}}><span style={{color:'var(--text-muted)'}}>Qtd: </span>{selected.quantity} · <span style={{color:'var(--text-muted)'}}>Valor: </span><strong>{selected.total_amount?`€ ${parseFloat(selected.total_amount).toLocaleString('pt-PT')}`:'-'}</strong></div>
+              <div style={{marginBottom:4,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                <span style={{color:'var(--text-muted)'}}>Qtd: </span>{selected.quantity} · <span style={{color:'var(--text-muted)'}}>Valor (S/IVA): </span>
+                {editingTotal ? (
+                  <>
+                    <input type="number" step="0.01" defaultValue={selected.total_amount} id="total-input" style={{width:110,border:'0.5px solid var(--border-hover)',borderRadius:'var(--radius)',padding:'3px 6px',fontSize:13,background:'var(--bg-card)',color:'var(--text)',fontFamily:'inherit'}} />
+                    <button className="btn btn-sm btn-primary" onClick={handleSaveTotal}>OK</button>
+                    <button className="btn btn-sm" onClick={()=>setEditingTotal(false)}>✕</button>
+                  </>
+                ) : (
+                  <>
+                    <strong>{selected.total_amount?`€ ${parseFloat(selected.total_amount).toLocaleString('pt-PT')}`:'-'}</strong>
+                    {isAdmin && <button className="btn btn-sm" onClick={()=>setEditingTotal(true)} title="Corrigir valor"><i className="ti ti-edit"/></button>}
+                  </>
+                )}
+              </div>
               {(selected.delivery_type||selected.delivery_address) && (
                 <div style={{padding:'8px 10px',background:'var(--green-light)',borderRadius:'var(--radius)',marginBottom:6,fontSize:12}}>
                   <span style={{fontWeight:600,color:'var(--green)'}}>🚚 Entrega: </span>
