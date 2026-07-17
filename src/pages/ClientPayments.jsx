@@ -252,8 +252,15 @@ export default function ClientPayments() {
   const totalSupplierToPay = enrichedInvoicesAll.filter(p=>!p.isPaid && !p.isCancelledOrder).reduce((acc,p)=>acc+p.remainingExclVat,0)
   const totalSupplierToPayVat = enrichedInvoicesAll.filter(p=>!p.isPaid && !p.isCancelledOrder).reduce((acc,p)=>acc+p.vatAmount,0)
   const totalSupplierToPayInclVat = enrichedInvoicesAll.filter(p=>!p.isPaid && !p.isCancelledOrder).reduce((acc,p)=>acc+p.remainingInclVat,0)
-  const totalPartialsPaid = supplierPartials.reduce((acc,p)=>acc+parseFloat(p.amount||0),0)
-  const totalSupplierPaid = totalPartialsPaid + enrichedInvoicesAll.filter(p=>p.status==='Pago' && !partialsByOrder[p.order_id]).reduce((acc,p)=>acc+p.amount,0)
+  // Todos os pagamentos a fornecedores (facturas pagas directamente + parciais), decompostos em
+  // S/IVA e C/IVA, excluindo encomendas entretanto canceladas (histórico à parte, fora do total).
+  const paidInvoicesOnlyAll = enrichedInvoicesAll.filter(p => p.status==='Pago' && !partialsByOrder[p.order_id])
+  const allPaidItems = [
+    ...paidInvoicesOnlyAll.map(p => ({ isCancelledOrder:p.isCancelledOrder, ...vatFor(p.orders, p.amount) })),
+    ...supplierPartials.map(p => { const amount = parseFloat(p.amount||0); return { isCancelledOrder:p.orders?.status==='Cancelado', ...vatFor(p.orders, amount) } }),
+  ].filter(p => !p.isCancelledOrder)
+  const totalSupplierPaidExclVat = allPaidItems.reduce((acc,p)=>acc+p.totalExclVat,0)
+  const totalSupplierPaidInclVat = allPaidItems.reduce((acc,p)=>acc+p.totalInclVat,0)
 
   // Valor total das encomendas (Confirmado + Em trânsito + Entregue) — igual ao mostrado em Encomendas,
   // independente de já haver ou não fatura registada, para servir de referência/conferência.
@@ -282,7 +289,7 @@ export default function ClientPayments() {
         <div className="metric"><div className="metric-label">A receber (clientes)</div><div className="metric-value text-amber">€ {totalClientPending.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Recebido de clientes</div><div className="metric-value text-green">€ {totalClientReceived.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Faturas por pagar (S/IVA)</div><div className="metric-value text-red">€ {totalSupplierToPay.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div><div className="metric-sub">c/IVA: € {totalSupplierToPayInclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
-        <div className="metric"><div className="metric-label">Pago a fornecedores</div><div className="metric-value text-green">€ {(totalSupplierPaid + totalPartialsPaid).toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
+        <div className="metric"><div className="metric-label">Pago a fornecedores (S/IVA)</div><div className="metric-value text-green">€ {totalSupplierPaidExclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div><div className="metric-sub">c/IVA: € {totalSupplierPaidInclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div></div>
         <div className="metric"><div className="metric-label">Valor encomendas (S/IVA)</div><div className="metric-value text-blue">€ {totalOrdersExclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})}</div><div className="metric-sub">c/IVA: € {totalOrdersInclVat.toLocaleString('pt-PT',{minimumFractionDigits:0})} · Confirmado+Trânsito+Entregue</div></div>
       </div>
 
