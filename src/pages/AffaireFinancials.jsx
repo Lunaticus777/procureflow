@@ -105,6 +105,12 @@ export default function AffaireFinancials() {
   const margin          = received - totalRealCost
   const marginPct       = received > 0 ? Math.round((margin/received)*100) : 0
   const projectedMargin = (received+pending) - totalRealCost     // se cobrar tudo
+  // Margem sobre a oferta acordada: orçamento total do cliente menos o custo total das encomendas
+  // (compras + IVA líquido, sem transporte) — a margem "de contrato", independente do que já foi
+  // facturado até agora.
+  const ordersCostNet    = costExclVat + vatNet
+  const marginOnBudget   = budget - ordersCostNet
+  const marginOnBudgetPct = budget > 0 ? Math.round((marginOnBudget/budget)*100) : 0
 
   // Veredito de viabilidade num relance, com base na margem projectada (se tudo for cobrado)
   const projectedMarginPct = (received+pending) > 0 ? Math.round((projectedMargin/(received+pending))*100) : 0
@@ -287,7 +293,12 @@ export default function AffaireFinancials() {
               {/* MARGEM */}
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>📊 ANÁLISE DE MARGEM</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+                  <div title="Orçamento acordado com o cliente menos o custo total das encomendas (compras + IVA líquido, sem transporte) — a margem de contrato, independentemente do que já foi facturado" style={{padding:'12px 14px',background:marginOnBudget>=0?'var(--green-light)':'var(--red-light)',borderRadius:'var(--radius)',border:`1.5px solid ${marginOnBudget>=0?'var(--green)':'var(--red)'}`,cursor:'help'}}>
+                    <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',marginBottom:4}}>📋 MARGEM S/ ORÇAMENTO <i className="ti ti-info-circle" style={{fontSize:10}}/></div>
+                    <div style={{fontSize:22,fontWeight:800,color:marginOnBudget>=0?'var(--green)':'var(--red)'}}>{marginOnBudget>=0?'+':''}{euro(marginOnBudget)}</div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{marginOnBudgetPct}% · oferta {euro(budget)} − encomendas {euro(ordersCostNet)}</div>
+                  </div>
                   <div style={{padding:'12px 14px',background:margin>=0?'var(--green-light)':'var(--red-light)',borderRadius:'var(--radius)',border:`1.5px solid ${margin>=0?'var(--green)':'var(--red)'}`}}>
                     <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',marginBottom:4}}>💵 MARGEM ACTUAL (recebido − custo real)</div>
                     <div style={{fontSize:22,fontWeight:800,color:margin>=0?'var(--green)':'var(--red)'}}>{margin>=0?'+':''}{euro(margin)}</div>
@@ -312,34 +323,46 @@ export default function AffaireFinancials() {
             {orders.length>0 && (
               <div className="card" style={{marginBottom:12}}>
                 <div className="card-header"><span className="card-title">🛒 Encomendas a fornecedores ({orders.length})</span></div>
+                <div style={{overflowX:'auto'}}>
                 <table>
                   <thead>
-                    <tr><th>Enc.</th><th>Material</th><th>Fornecedor</th><th>S/IVA</th><th>IVA</th><th>C/IVA</th><th>Pago</th><th>Estado</th></tr>
+                    <tr><th>Enc.</th><th>Material</th><th>Fornecedor</th><th>Facturação</th><th>S/IVA</th><th>IVA</th><th>C/IVA</th><th>Pago</th><th>Pendente</th><th>Estado</th></tr>
                   </thead>
                   <tbody>
                     {orders.map(o => {
                       const rawTotal = parseFloat(o.total_amount||0)
                       const vatExempt = o.quotations?.vat_exempt||false
+                      const priceIncludesVat = o.quotations?.price_includes_vat||false
                       const vatRate = parseFloat(o.quotations?.vat_rate||23)
                       const { vatAmount:vatAmt, totalExclVat, totalInclVat } = vatForOrder(o, rawTotal)
                       const paid = o.order_partial_payments?.reduce((a,p)=>a+parseFloat(p.amount||0),0)||0
+                      const pendente = Math.max(0, totalInclVat - paid)
                       return (
                         <tr key={o.id}>
                           <td style={{fontWeight:600}}>{o.ref_number}</td>
                           <td style={{fontSize:12,maxWidth:130,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.requisitions?.description||'—'}</td>
                           <td style={{fontSize:12}}>{o.suppliers?.name||'—'}</td>
+                          <td style={{fontSize:11}}>
+                            {vatExempt
+                              ? <span style={{color:'var(--green)'}}>Isento</span>
+                              : priceIncludesVat
+                                ? <span style={{color:'var(--text-muted)'}}>c/ IVA incl.</span>
+                                : <span style={{color:'var(--text-muted)'}}>s/ IVA</span>}
+                          </td>
                           <td>{euro(totalExclVat)}</td>
                           <td style={{color:vatExempt?'var(--green)':'var(--amber)',fontSize:12}}>
                             {vatExempt?<span title="IVA recuperável — exportação">✈️ 0%</span>:`+${euro(vatAmt)} (${vatRate}%)`}
                           </td>
                           <td style={{fontWeight:600}}>{euro(totalInclVat)}</td>
-                          <td style={{color:paid>=totalInclVat?'var(--green)':'var(--amber)',fontSize:12}}>{euro(paid)}</td>
+                          <td style={{color:'var(--green)',fontSize:12}}>{euro(paid)}</td>
+                          <td style={{color:pendente>0.01?'var(--amber)':'var(--text-muted)',fontSize:12,fontWeight:pendente>0.01?600:400}}>{euro(pendente)}</td>
                           <td><span className={`badge ${{Confirmado:'badge-ordered','Em trânsito':'badge-transit',Entregue:'badge-delivered'}[o.status]||''}`}>{o.status}</span></td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
